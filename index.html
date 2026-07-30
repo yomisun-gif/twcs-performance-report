@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>TW 客服團隊每日績效報表產生工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ic-color:#e3f2fd; --ic-border:#1976d2;
+    --chat-color:#e8f5e9; --chat-border:#388e3c;
+    --online-color:#fdece0; --online-border:#f57c00;
+    --busy-color:#fffde7; --busy-border:#fbc02d;
+    --away-color:#ffebee; --away-border:#d32f2f;
+    --offline-color:#eeeeee; --offline-border:#757575;
+    --total-color:#ede7f6; --total-border:#5e35b1;
+    --header-h:36px;
+    --id-col1:60px; --id-col2:80px; --id-col3:90px; --id-col4:110px;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:#f4f5f7;color:#222;}
+  header{background:#1a1a2e;color:#fff;padding:14px 20px;}
+  header h1{margin:0;font-size:18px;}
+  header p{margin:4px 0 0;font-size:12px;color:#bbb;}
+  .tabs{display:flex;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:50;}
+  .tab{padding:12px 18px;cursor:pointer;font-size:14px;border-bottom:3px solid transparent;color:#555;}
+  .tab.active{border-bottom-color:#1976d2;color:#1976d2;font-weight:bold;}
+  .panel{display:none;padding:18px;max-width:1500px;margin:0 auto;}
+  .panel.active{display:block;}
+  .card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:16px;}
+  .card h2{font-size:15px;margin:0 0 10px;}
+  .card h3{font-size:13px;margin:14px 0 8px;color:#444;}
+  .hint{font-size:12px;color:#777;margin:4px 0 10px;}
+  input[type=file]{font-size:13px;}
+  textarea{width:100%;min-height:130px;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:4px;}
+  select,button,input[type=date]{font-size:13px;padding:6px 10px;border-radius:4px;border:1px solid #ccc;}
+  button.primary{background:#1976d2;color:#fff;border:none;cursor:pointer;font-weight:bold;}
+  button.primary:hover{background:#125aa0;}
+  button.secondary{background:#eee;border:1px solid #ccc;cursor:pointer;}
+  table.maptable{width:100%;border-collapse:collapse;font-size:12px;}
+  table.maptable th,table.maptable td{border:1px solid #e0e0e0;padding:6px 8px;text-align:left;}
+  table.maptable th{background:#fafafa;}
+  .status-ok{color:#2e7d32;font-weight:bold;}
+  .filecount{font-size:12px;color:#333;margin-top:6px;}
+  .flex{display:flex;gap:16px;flex-wrap:wrap;}
+  .flex>div{flex:1;min-width:280px;}
+  .report-wrap{overflow-x:auto;border:1px solid #ddd;border-radius:6px;max-height:75vh;overflow-y:auto;}
+  table.report{border-collapse:collapse;font-size:12px;white-space:nowrap;}
+  table.report th,table.report td{border:1px solid #e0e0e0;padding:5px 8px;text-align:right;}
+  table.report thead tr:nth-child(1) th{position:sticky;top:0;z-index:20;height:var(--header-h);}
+  table.report thead tr:nth-child(2) th{position:sticky;top:var(--header-h);z-index:19;height:var(--header-h);font-weight:normal;font-size:11px;}
+  .idcol{text-align:left;position:sticky;background:#fff;z-index:6;}
+  th.idcol{z-index:30;background:#fafafa;}
+  .id1{left:0;width:var(--id-col1);} .id2{left:var(--id-col1);width:var(--id-col2);}
+  .id3{left:calc(var(--id-col1) + var(--id-col2));width:var(--id-col3);}
+  .id4{left:calc(var(--id-col1) + var(--id-col2) + var(--id-col3));width:var(--id-col4);font-weight:bold;}
+  .blk-ic{background:var(--ic-color);}
+  .blk-chat{background:var(--chat-color);}
+  .blk-online{background:var(--online-color);}
+  .blk-busy{background:var(--busy-color);}
+  .blk-away{background:var(--away-color);}
+  .blk-offline{background:var(--offline-color);}
+  .blk-total{background:var(--total-color);font-weight:bold;}
+  .toolbar{display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
+  .badge{font-size:11px;padding:2px 8px;border-radius:10px;background:#eee;}
+  .warn-box{background:#fff8e1;border:1px solid #ffca28;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px;}
+  .env-badge{font-size:11px;color:#bbb;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TW 客服團隊每日績效報表產生工具</h1>
+  <p>IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ 上傳三份明細檔即可自動產出 <span class="env-badge" id="env-badge"></span></p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="upload">① 上傳資料</div>
+  <div class="tab" data-tab="mapping">② 欄位對應</div>
+  <div class="tab" data-tab="roster">③ 專員名單 / 主管簡稱</div>
+  <div class="tab" data-tab="result">④ 報表結果</div>
+</div>
+
+<!-- ① 上傳 -->
+<div class="panel active" id="panel-upload">
+  <div class="card">
+    <h2>上傳三份明細檔</h2>
+    <p class="hint">支援 .xlsx / .xls / .csv。每份檔案僅需第一個工作表。</p>
+    <div class="flex">
+      <div>
+        <h3>① Internet Call 明細表</h3>
+        <input type="file" id="file-ic" accept=".xlsx,.xls,.csv">
+        <div class="filecount" id="count-ic">尚未上傳</div>
+      </div>
+      <div>
+        <h3>② Chat Data 明細表</h3>
+        <input type="file" id="file-chat" accept=".xlsx,.xls,.csv">
+        <div class="filecount" id="count-chat">尚未上傳</div>
+      </div>
+      <div>
+        <h3>③ Status Log 狀態日誌表</h3>
+        <input type="file" id="file-status" accept=".xlsx,.xls,.csv">
+        <div class="filecount" id="count-status">尚未上傳</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ② 欄位對應 -->
+<div class="panel" id="panel-mapping">
+  <div class="card"><h2>IC 明細欄位對應</h2><div id="map-ic"></div></div>
+  <div class="card"><h2>Chat 明細欄位對應</h2><div id="map-chat"></div></div>
+  <div class="card"><h2>Status Log 欄位對應</h2><div id="map-status"></div></div>
+  <button class="primary" id="btn-save-mapping">儲存對應（下次上傳同結構檔案將自動套用）</button>
+</div>
+
+<!-- ③ 專員名單 -->
+<div class="panel" id="panel-roster">
+  <div class="card">
+    <h2>專員基準名單</h2>
+    <p class="hint">每行一位專員，格式：<code>Email,姓名,主管Email,Batch</code>（姓名/Batch可留空）。無資料的專員仍會列在報表中。此名單會自動記住。</p>
+    <textarea id="roster-input" placeholder="agent01@shopee.com,王小明,patty.lin@shopee.com,2607W31&#10;agent02@shopee.com,李小華,lucy.peng@shopee.com,2607W31"></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="primary" id="btn-save-roster">儲存名單</button>
+      <span class="badge" id="roster-count">0 位專員</span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>主管簡稱對照表</h2>
+    <p class="hint">每行一筆，格式：<code>主管Email,簡稱</code>，用於報表「組別」欄位顯示。</p>
+    <textarea id="manager-input" style="min-height:80px;" placeholder="patty.lin@shopee.com,Patty&#10;lucy.peng@shopee.com,Lucy"></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="primary" id="btn-save-managers">儲存對照表</button>
+      <span class="badge" id="manager-count">0 筆對照</span>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 報表結果 -->
+<div class="panel" id="panel-result">
+  <div class="card">
+    <div class="toolbar">
+      <label>報表日期：<input type="date" id="report-date"></label>
+      <button class="primary" id="btn-generate">產出報表</button>
+      <button class="secondary" id="btn-export-xlsx">匯出 Excel</button>
+      <button class="secondary" id="btn-export-html">下載此頁 HTML</button>
+      <span class="badge" id="gen-status"></span>
+    </div>
+    <div id="warnings"></div>
+  </div>
+  <div class="report-wrap"><table class="report" id="report-table"></table></div>
+</div>
+
+<script>
+/* ============ 儲存層：優先用 Claude artifact 的 window.storage，
+   若不存在（例如搬到 GitHub Pages 後）自動改用 localStorage，無需改程式碼 ============ */
+const usingArtifactStorage = (typeof window.storage !== 'undefined');
+document.getElementById('env-badge').textContent = usingArtifactStorage ? '(儲存於 Claude 對話環境)' : '(儲存於瀏覽器 localStorage)';
+async function storageGet(key){
+  if(usingArtifactStorage){
+    try{ const r = await window.storage.get(key, false); return r ? r.value : null; }catch(e){ return null; }
+  }
+  return localStorage.getItem(key);
+}
+async function storageSet(key, val){
+  if(usingArtifactStorage){ await window.storage.set(key, val, false); return; }
+  localStorage.setItem(key, val);
+}
+
+/* ============ 狀態 ============ */
+const state = {
+  ic: {rows:[], headers:[], map:{}},
+  chat: {rows:[], headers:[], map:{}},
+  status: {rows:[], headers:[], map:{}},
+  roster: [],
+  managers: {} // email(lower) -> 簡稱
+};
+
+const REQ = {
+  ic: [
+    ['last_agent_email','Last Agent Email（最後接聽專員 Email，決定通數/AHT/ACD歸屬）'],
+    ['call_end_time','Call End Time（通話結束時間）'],
+    ['last_routed_time','Last Routed to Agent Time（最後轉派至專員時間）'],
+    ['is_answered','Is Answered（是否接聽，值需含 Yes/No）'],
+    ['csat','CSAT（值為 Good/Bad/Average/- 等評價文字）']
+  ],
+  chat: [
+    ['chat_owner','Chat Owner（負責專員 Email，計算產能用）'],
+    ['csat','CSAT（值為 Good/Bad/Average/- 等評價文字）']
+  ],
+  status: [
+    ['email','專員 Email'],
+    ['sub_status','Sub Status（子狀態，如 online for internet call / busy with wrapup 等）'],
+    ['start_datetime','Status Start Time（狀態開始時間，含日期與時間）'],
+    ['end_datetime','Status End Time（狀態結束時間，含日期與時間）']
+  ]
+};
+
+const GUESS = {
+  last_agent_email:['last agent email','last agent'],
+  call_end_time:['call end time','end time'],
+  last_routed_time:['last routed','routed to agent'],
+  is_answered:['is answered','answered'],
+  csat:['csat'],
+  chat_owner:['chat owner','owner'],
+  email:['email'],
+  sub_status:['sub status','substatus'],
+  start_datetime:['status start time','start time'],
+  end_datetime:['status end time','end time']
+};
+
+/* ============ Tabs ============ */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+/* ============ 檔案解析 ============ */
+function readFile(file, cb){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, {type:'array', cellDates:true});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    cb(rows, headers);
+  };
+  reader.readAsArrayBuffer(file);
+}
+function guessMap(headers, key){
+  const kws = GUESS[key] || [];
+  const lower = headers.map(h=>String(h).toLowerCase());
+  for(const kw of kws){
+    const idx = lower.findIndex(h=>h.includes(kw));
+    if(idx>=0) return headers[idx];
+  }
+  return '';
+}
+function setupUpload(id, sourceKey, countElId){
+  document.getElementById(id).addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    readFile(file, async (rows, headers)=>{
+      state[sourceKey].rows = rows;
+      state[sourceKey].headers = headers;
+      const saved = await storageGet('colmap_'+sourceKey);
+      let map = null;
+      try{
+        const parsed = saved ? JSON.parse(saved) : null;
+        if(parsed && parsed.headers && JSON.stringify(parsed.headers.slice().sort())===JSON.stringify(headers.slice().sort())){
+          map = parsed.map;
+        }
+      }catch(err){}
+      if(!map){
+        map = {};
+        REQ[sourceKey].forEach(([key])=> map[key] = guessMap(headers, key));
+      }
+      state[sourceKey].map = map;
+      renderMapping(sourceKey);
+      document.getElementById(countElId).innerHTML = `<span class="status-ok">已讀取 ${rows.length} 筆資料</span>，欄位數：${headers.length}`;
+    });
+  });
+}
+setupUpload('file-ic','ic','count-ic');
+setupUpload('file-chat','chat','count-chat');
+setupUpload('file-status','status','count-status');
+
+/* ============ 欄位對應 UI ============ */
+function renderMapping(sourceKey){
+  const container = document.getElementById('map-'+sourceKey);
+  const headers = state[sourceKey].headers;
+  if(!headers.length){ container.innerHTML = '<p class="hint">尚未上傳檔案。</p>'; return; }
+  let html = '<table class="maptable"><tr><th>系統需要欄位</th><th>對應到您的檔案欄位</th></tr>';
+  REQ[sourceKey].forEach(([key, label])=>{
+    const cur = state[sourceKey].map[key] || '';
+    html += `<tr><td>${label}</td><td><select data-source="${sourceKey}" data-key="${key}" class="mapsel">
+      <option value="">（無此欄位）</option>
+      ${headers.map(h=>`<option value="${h}" ${h===cur?'selected':''}>${h}</option>`).join('')}
+    </select></td></tr>`;
+  });
+  html += '</table>';
+  container.innerHTML = html;
+  container.querySelectorAll('.mapsel').forEach(sel=>{
+    sel.onchange = ()=>{ state[sel.dataset.source].map[sel.dataset.key] = sel.value; };
+  });
+}
+['ic','chat','status'].forEach(renderMapping);
+
+document.getElementById('btn-save-mapping').onclick = async ()=>{
+  for(const key of ['ic','chat','status']){
+    if(state[key].headers.length){
+      await storageSet('colmap_'+key, JSON.stringify({headers:state[key].headers, map:state[key].map}));
+    }
+  }
+  alert('欄位對應已儲存，下次上傳相同欄位結構的檔案會自動套用。');
+};
+
+/* ============ 專員名單 / 主管簡稱 ============ */
+function parseRosterText(text){
+  return text.split(/\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
+    const parts = line.split(/[,\t]/).map(s=>s.trim());
+    return {email:(parts[0]||'').toLowerCase(), name:parts[1]||'', manager:(parts[2]||'').toLowerCase(), batch:parts[3]||''};
+  }).filter(r=>r.email);
+}
+function parseManagerText(text){
+  const map = {};
+  text.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
+    const parts = line.split(/[,\t]/).map(s=>s.trim());
+    if(parts[0]) map[parts[0].toLowerCase()] = parts[1] || parts[0];
+  });
+  return map;
+}
+document.getElementById('btn-save-roster').onclick = async ()=>{
+  const text = document.getElementById('roster-input').value;
+  state.roster = parseRosterText(text);
+  await storageSet('roster_list', text);
+  document.getElementById('roster-count').textContent = state.roster.length + ' 位專員';
+  alert('名單已儲存（' + state.roster.length + ' 位）');
+};
+document.getElementById('btn-save-managers').onclick = async ()=>{
+  const text = document.getElementById('manager-input').value;
+  state.managers = parseManagerText(text);
+  await storageSet('manager_map', text);
+  document.getElementById('manager-count').textContent = Object.keys(state.managers).length + ' 筆對照';
+  alert('主管簡稱對照表已儲存');
+};
+async function loadSavedInputs(){
+  const rosterText = await storageGet('roster_list');
+  if(rosterText){
+    document.getElementById('roster-input').value = rosterText;
+    state.roster = parseRosterText(rosterText);
+    document.getElementById('roster-count').textContent = state.roster.length + ' 位專員';
+  }
+  const mgrText = await storageGet('manager_map');
+  if(mgrText){
+    document.getElementById('manager-input').value = mgrText;
+    state.managers = parseManagerText(mgrText);
+    document.getElementById('manager-count').textContent = Object.keys(state.managers).length + ' 筆對照';
+  }
+}
+loadSavedInputs();
+
+/* ============ 計算工具函式 ============ */
+function toDate(v){
+  if(v instanceof Date) return v;
+  if(typeof v === 'number'){
+    const epoch = new Date(Date.UTC(1899,11,30));
+    return new Date(epoch.getTime() + v*86400000);
+  }
+  if(typeof v === 'string' && v.trim()){
+    const s = v.trim().replace(' ', 'T');
+    let d = new Date(s);
+    if(!isNaN(d)) return d;
+    d = new Date(v);
+    if(!isNaN(d)) return d;
+  }
+  return null;
+}
+function secBetween(a,b){
+  const da=toDate(a), db=toDate(b);
+  if(!da||!db) return null;
+  const s = (db-da)/1000;
+  return s>=0 ? s : null;
+}
+function dateOnly(v){
+  const d = toDate(v);
+  if(!d) return null;
+  return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+}
+function secToHMS(sec){
+  if(sec===null || sec===undefined || isNaN(sec)) return '0:00:00';
+  sec = Math.round(sec);
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = sec%60;
+  return h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function pct(n,d){ if(!d) return '-'; return (n/d*100).toFixed(1)+'%'; }
+function isYes(v){ return String(v).trim().toLowerCase()==='yes' || String(v).trim()==='是'; }
+
+/* ============ 主計算 ============ */
+function computeReport(){
+  const warnings = [];
+  if(!state.roster.length){ warnings.push('尚未設定專員名單，將以資料中出現過的 Email 作為基準列出。'); }
+  ['ic','chat','status'].forEach(k=>{
+    REQ[k].forEach(([key,label])=>{
+      if(state[k].rows.length && !state[k].map[key]){
+        warnings.push(`【${k.toUpperCase()}】「${label}」尚未對應欄位，相關計算將以 - 或 0 呈現。`);
+      }
+    });
+  });
+
+  const icMap = state.ic.map, chatMap = state.chat.map, stMap = state.status.map;
+
+  let emails;
+  if(state.roster.length){
+    emails = state.roster.map(r=>r.email);
+  } else {
+    const set = new Set();
+    state.ic.rows.forEach(r=>{ const e=r[icMap.last_agent_email]; if(e) set.add(String(e).toLowerCase()); });
+    state.chat.rows.forEach(r=>{ const e=r[chatMap.chat_owner]; if(e) set.add(String(e).toLowerCase()); });
+    state.status.rows.forEach(r=>{ const e=r[stMap.email]; if(e) set.add(String(e).toLowerCase()); });
+    emails = Array.from(set);
+  }
+  const rosterInfo = {};
+  state.roster.forEach(r=> rosterInfo[r.email] = r);
+
+  function baseAgent(e){
+    const ri = rosterInfo[e] || {};
+    const mgrShort = state.managers[ri.manager] || ri.manager || '(未設定)';
+    return {
+      email:e, name:ri.name||'', batch:ri.batch||'', manager:mgrShort,
+      icCount:0, icAnswered:0, acdSum:0, acdCount:0, icGood:0, icBad:0, icAvg:0,
+      chatCount:0, chatGood:0, chatBad:0, chatAvg:0,
+      status:{}
+    };
+  }
+  const agents = {};
+  emails.forEach(e=> agents[e] = baseAgent(e));
+  function ensure(e){ if(!agents[e]) agents[e] = baseAgent(e); return agents[e]; }
+
+  // ---- IC ----
+  state.ic.rows.forEach(r=>{
+    const e = String(r[icMap.last_agent_email]||'').toLowerCase().trim();
+    if(!e) return;
+    const a = ensure(e);
+    a.icCount++;
+    if(isYes(r[icMap.is_answered])){
+      a.icAnswered++;
+      const dur = secBetween(r[icMap.last_routed_time], r[icMap.call_end_time]);
+      if(dur!==null){ a.acdSum += dur; a.acdCount++; }
+    }
+    const csat = String(r[icMap.csat]||'').trim();
+    if(/good/i.test(csat)) a.icGood++;
+    else if(/bad/i.test(csat)) a.icBad++;
+    else if(/average|avg/i.test(csat)) a.icAvg++;
+  });
+
+  // ---- Chat ----
+  state.chat.rows.forEach(r=>{
+    const e = String(r[chatMap.chat_owner]||'').toLowerCase().trim();
+    if(!e) return;
+    const a = ensure(e);
+    a.chatCount++;
+    const csat = String(r[chatMap.csat]||'').trim();
+    if(/good/i.test(csat)) a.chatGood++;
+    else if(/bad/i.test(csat)) a.chatBad++;
+    else if(/average|avg/i.test(csat)) a.chatAvg++;
+  });
+
+  // ---- Status Log ----
+  const SUBMAP = {
+    'online for internet call':'on_ic',
+    'online for chat':'on_chat',
+    'online for call':'on_call',
+    'online for case':'on_case',
+    'busy with wrapup':'busy_wrapup',
+    'busy with training':'busy_training',
+    'busy with meeting':'busy_meeting',
+    'busy with coaching':'busy_coaching',
+    'busy with escalation':'busy_escalation',
+    'busy with outbound':'busy_outbound',
+    'away for short break':'away_break',
+    'away for meal':'away_meal',
+    'away for consult':'away_consult',
+    'away for personal break':'away_personal',
+    'offline':'offline'
+  };
+  state.status.rows.forEach(r=>{
+    const e = String(r[stMap.email]||'').toLowerCase().trim();
+    if(!e) return;
+    const a = ensure(e);
+    const sub = String(r[stMap.sub_status]||'').toLowerCase().trim();
+    const code = SUBMAP[sub];
+    if(!code) return;
+    const startV = r[stMap.start_datetime], endV = r[stMap.end_datetime];
+    const dur = secBetween(startV, endV);
+    if(!a.status[code]) a.status[code] = {sec:0,count:0};
+    if(code==='offline'){
+      a.status[code].count++;
+      const sd = dateOnly(startV), ed = dateOnly(endV);
+      if(sd && ed && sd===ed && dur!==null){ a.status[code].sec += dur; }
+    } else {
+      if(dur!==null) a.status[code].sec += dur;
+      a.status[code].count++;
+    }
+  });
+
+  const rows = emails.map(e=>{
+    const a = agents[e];
+    const st = a.status;
+    const g = (code)=> (st[code]?st[code].sec:0);
+    const cnt = (code)=> (st[code]?st[code].count:0);
+
+    const acwSec = g('on_case') + g('busy_wrapup');
+    const acw = a.icCount ? acwSec / a.icCount : null;
+    const acd = a.acdCount ? a.acdSum/a.acdCount : null;
+    const aht = (acd!==null && acw!==null) ? acd+acw : null;
+
+    const onIC=g('on_ic'), onChat=g('on_chat'), onICChat=onIC+onChat, onCall=g('on_call'), onCase=g('on_case');
+    const busyWrap=g('busy_wrapup'), busyTrain=g('busy_training'), busyMeet=g('busy_meeting'),
+          busyCoach=g('busy_coaching'), busyEsc=g('busy_escalation'), busyOut=g('busy_outbound');
+    const awayBreak=g('away_break'), awayMeal=g('away_meal'), awayBreakMeal=awayBreak+awayMeal,
+          awayConsult=g('away_consult'), awayPersonal=g('away_personal');
+    const offlineSec = g('offline'), offlineCount = cnt('offline');
+    const busyOutCount = cnt('busy_outbound');
+
+    const totalA = onIC+onChat+onICChat+onCall+onCase+busyWrap+busyOut;
+    const totalB = onIC+onChat+onICChat+onCall+onCase
+        + busyWrap+busyTrain+busyMeet+busyCoach+busyEsc+busyOut
+        + awayBreak+awayMeal+awayConsult+awayPersonal;
+
+    return {
+      email:a.email, name:a.name||a.email, batch:a.batch, manager:a.manager,
+      icCount: a.icCount||'-',
+      acd: a.icCount ? secToHMS(acd) : '-',
+      acw: a.icCount ? (acw!==null?secToHMS(acw):'-') : '-',
+      aht: a.icCount ? (aht!==null?secToHMS(aht):'-') : '-',
+      icCsat: (a.icGood+a.icBad) ? pct(a.icGood, a.icGood+a.icBad) : '-',
+      icCsatRate: a.icCount ? pct(a.icGood+a.icBad+a.icAvg, a.icCount) : '-',
+
+      chatCount: a.chatCount||'-',
+      chatAht:'-',
+      chatCsat: (a.chatGood+a.chatBad) ? pct(a.chatGood, a.chatGood+a.chatBad) : '-',
+
+      onIC:secToHMS(onIC), onChat:secToHMS(onChat), onICChat:secToHMS(onICChat), onCall:secToHMS(onCall), onCase:secToHMS(onCase),
+      busyWrap:secToHMS(busyWrap), busyTrain:secToHMS(busyTrain), busyMeet:secToHMS(busyMeet),
+      busyCoach:secToHMS(busyCoach), busyEsc:secToHMS(busyEsc), busyOut:secToHMS(busyOut), busyOutCount:busyOutCount,
+      awayBreak:secToHMS(awayBreak), awayMeal:secToHMS(awayMeal), awayBreakMeal:secToHMS(awayBreakMeal),
+      awayConsult:secToHMS(awayConsult), awayPersonal:secToHMS(awayPersonal),
+      offlineTime:secToHMS(offlineSec), offlineCount:offlineCount,
+      totalA:secToHMS(totalA), totalB:secToHMS(totalB)
+    };
+  });
+
+  rows.sort((x,y)=> (x.manager+x.name).localeCompare(y.manager+y.name,'zh-Hant'));
+  return {rows, warnings};
+}
+
+/* ============ 報表渲染 ============ */
+const COLS = [
+  {k:'icCount',l:'產能',blk:'ic'}, {k:'aht',l:'AHT',blk:'ic'}, {k:'acd',l:'ACD',blk:'ic'}, {k:'acw',l:'ACW',blk:'ic'},
+  {k:'icCsat',l:'滿意度',blk:'ic'}, {k:'icCsatRate',l:'回收率',blk:'ic'},
+
+  {k:'chatCount',l:'產能',blk:'chat'}, {k:'chatAht',l:'AHT',blk:'chat'}, {k:'chatCsat',l:'滿意度',blk:'chat'},
+
+  {k:'onIC',l:'網路電話',blk:'online'}, {k:'onChat',l:'即時客服',blk:'online'}, {k:'onICChat',l:'雙渠道',blk:'online'},
+  {k:'onCall',l:'電話',blk:'online'}, {k:'onCase',l:'文書',blk:'online'},
+
+  {k:'busyWrap',l:'話後',blk:'busy'}, {k:'busyTrain',l:'訓練',blk:'busy'}, {k:'busyMeet',l:'會議',blk:'busy'},
+  {k:'busyCoach',l:'輔導',blk:'busy'}, {k:'busyEsc',l:'轉單諮詢',blk:'busy'}, {k:'busyOut',l:'外撥',blk:'busy'}, {k:'busyOutCount',l:'外撥(通數)',blk:'busy'},
+
+  {k:'awayBreak',l:'休息',blk:'away'}, {k:'awayMeal',l:'用餐',blk:'away'}, {k:'awayBreakMeal',l:'休息+用餐',blk:'away'},
+  {k:'awayConsult',l:'諮詢',blk:'away'}, {k:'awayPersonal',l:'其他',blk:'away'},
+
+  {k:'offlineTime',l:'離線(時間)',blk:'offline'}, {k:'offlineCount',l:'離線(次數)',blk:'offline'},
+
+  {k:'totalA',l:'Online Busy',blk:'total'}, {k:'totalB',l:'Online Busy Away',blk:'total'}
+];
+const BLK_LABEL = {ic:'Call', chat:'Chat', online:'線上 Online', busy:'忙碌 Busy', away:'離開 Away', offline:'離線 Offline', total:'合計'};
+
+function renderTable(rows){
+  const tbl = document.getElementById('report-table');
+  let blkSeq = [], last=null;
+  COLS.forEach(c=>{
+    if(c.blk===last){ blkSeq[blkSeq.length-1].span++; }
+    else { last=c.blk; blkSeq.push({blk:c.blk, span:1}); }
+  });
+  let h1 = `<tr>
+    <th class="idcol id1" rowspan="2">組別</th>
+    <th class="idcol id2" rowspan="2">Batch</th>
+    <th class="idcol id3" rowspan="2">日期</th>
+    <th class="idcol id4" rowspan="2">Agent</th>`;
+  blkSeq.forEach(b=> h1 += `<th class="blk-${b.blk}" colspan="${b.span}">${BLK_LABEL[b.blk]}</th>`);
+  h1 += '</tr>';
+  let h2 = '<tr>';
+  COLS.forEach(c=> h2 += `<th class="blk-${c.blk}">${c.l}</th>`);
+  h2 += '</tr>';
+
+  const dateStr = document.getElementById('report-date').value || '';
+  let body = '';
+  rows.forEach(r=>{
+    body += `<tr>
+      <td class="idcol id1">${r.manager}</td>
+      <td class="idcol id2">${r.batch||'-'}</td>
+      <td class="idcol id3">${dateStr||'-'}</td>
+      <td class="idcol id4">${r.name}</td>`;
+    COLS.forEach(c=> body += `<td class="blk-${c.blk}">${r[c.k]}</td>`);
+    body += '</tr>';
+  });
+  tbl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
+}
+
+let lastRows = [];
+document.getElementById('btn-generate').onclick = ()=>{
+  const {rows, warnings} = computeReport();
+  lastRows = rows;
+  renderTable(rows);
+  const wbox = document.getElementById('warnings');
+  wbox.innerHTML = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
+  document.getElementById('gen-status').textContent = `已產出 ${rows.length} 位專員資料`;
+};
+
+document.getElementById('btn-export-xlsx').onclick = ()=>{
+  if(!lastRows.length){ alert('請先產出報表'); return; }
+  const dateStr = document.getElementById('report-date').value || new Date().toISOString().slice(0,10);
+  const header1 = ['組別','Batch','日期','Agent'].concat(COLS.map(c=>BLK_LABEL[c.blk]));
+  const header2 = ['','','',''].concat(COLS.map(c=>c.l));
+  const data = [header1, header2];
+  lastRows.forEach(r=>{
+    data.push([r.manager, r.batch||'-', dateStr, r.name].concat(COLS.map(c=>r[c.k])));
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '每日績效報表');
+  XLSX.writeFile(wb, `TW客服每日績效報表_${dateStr}.xlsx`);
+};
+
+document.getElementById('btn-export-html').onclick = ()=>{
+  const dateStr = document.getElementById('report-date').value || new Date().toISOString().slice(0,10);
+  const blob = new Blob(['<!DOCTYPE html><meta charset="utf-8"><title>報表</title>'+document.getElementById('report-table').outerHTML], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `TW客服每日績效報表_${dateStr}.html`;
+  a.click();
+};
+</script>
+</body>
+</html>
