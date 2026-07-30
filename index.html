@@ -117,8 +117,8 @@
 <div class="panel" id="panel-roster">
   <div class="card">
     <h2>專員基準名單</h2>
-    <p class="hint">每行一位專員，格式：<code>Email,姓名,主管Email,Batch</code>（姓名/Batch可留空）。無資料的專員仍會列在報表中。此名單會自動記住。</p>
-    <textarea id="roster-input" placeholder="agent01@shopee.com,王小明,patty.lin@shopee.com,2607W31&#10;agent02@shopee.com,李小華,lucy.peng@shopee.com,2607W31"></textarea>
+    <p class="hint">每行一位專員，格式：<code>Email 姓名</code>（用空白或逗號分隔皆可，例：<code>dawn.kuo@shopee.com Dawn Kuo</code>）。若需要額外指定主管/Batch，可在姓名後面用逗號加註：<code>Email 姓名,主管Email,Batch</code>，不加也沒關係。上方名單與下方主管對照表**不強制都要填**，只填其中一個也能產出報表——貼專員名單就依專員去找資料，貼主管對照表就依主管去對應「組別」欄位顯示。無資料的專員仍會列在報表中。此名單會自動記住。</p>
+    <textarea id="roster-input" placeholder="dawn.kuo@shopee.com Dawn Kuo&#10;daisy.chang@shopee.com Daisy Chang&#10;sally.liang@shopee.com Sally Liang"></textarea>
     <div class="toolbar" style="margin-top:8px;">
       <button class="primary" id="btn-save-roster">儲存名單</button>
       <span class="badge" id="roster-count">0 位專員</span>
@@ -126,8 +126,8 @@
   </div>
   <div class="card">
     <h2>主管簡稱對照表</h2>
-    <p class="hint">每行一筆，格式：<code>主管Email,簡稱</code>，用於報表「組別」欄位顯示。</p>
-    <textarea id="manager-input" style="min-height:80px;" placeholder="patty.lin@shopee.com,Patty&#10;lucy.peng@shopee.com,Lucy"></textarea>
+    <p class="hint">每行一筆，格式：<code>主管Email 簡稱</code> 或 <code>主管Email,簡稱</code> 皆可，用於報表「組別」欄位顯示。此表為選填，若不填，「組別」欄位會顯示 (未設定)。</p>
+    <textarea id="manager-input" style="min-height:80px;" placeholder="patty.lin@shopee.com Patty&#10;lucy.peng@shopee.com Lucy"></textarea>
     <div class="toolbar" style="margin-top:8px;">
       <button class="primary" id="btn-save-managers">儲存對照表</button>
       <span class="badge" id="manager-count">0 筆對照</span>
@@ -300,20 +300,41 @@ document.getElementById('btn-save-mapping').onclick = async ()=>{
 };
 
 /* ============ 專員名單 / 主管簡稱 ============ */
+// 解析一行「Email 姓名」（空白分隔）或「Email,姓名,主管Email,Batch」（逗號分隔），兩種可混用
+function parseRosterLine(line){
+  const segs = line.split(',').map(s=>s.trim()).filter(s=>s!=='');
+  if(!segs.length) return {email:'', name:'', manager:'', batch:''};
+  const first = segs[0];
+  const m = first.match(/^(\S+)\s+(.*)$/); // 第一段本身是否為 "email 姓名"
+  if(m){
+    // 第一段已含姓名 -> 後續逗號段依序視為 主管Email, Batch
+    return {email:m[1].toLowerCase(), name:m[2].trim(), manager:(segs[1]||'').toLowerCase(), batch:segs[2]||''};
+  }
+  // 第一段只有 email -> 後續逗號段依序視為 姓名, 主管Email, Batch
+  return {email:first.toLowerCase(), name:segs[1]||'', manager:(segs[2]||'').toLowerCase(), batch:segs[3]||''};
+}
 function parseRosterText(text){
-  return text.split(/\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
-    const parts = line.split(/[,\t]/).map(s=>s.trim());
-    return {email:(parts[0]||'').toLowerCase(), name:parts[1]||'', manager:(parts[2]||'').toLowerCase(), batch:parts[3]||''};
-  }).filter(r=>r.email);
+  return text.split(/\n/).map(l=>l.trim()).filter(Boolean).map(parseRosterLine).filter(r=>r.email);
 }
 function parseManagerText(text){
   const map = {};
   text.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
-    const parts = line.split(/[,\t]/).map(s=>s.trim());
+    let parts;
+    if(line.includes(',')) parts = line.split(',').map(s=>s.trim());
+    else {
+      const m = line.match(/^(\S+)\s+(.*)$/);
+      parts = m ? [m[1], m[2].trim()] : [line];
+    }
     if(parts[0]) map[parts[0].toLowerCase()] = parts[1] || parts[0];
   });
   return map;
 }
+document.getElementById('roster-input').addEventListener('input', (e)=>{
+  document.getElementById('roster-count').textContent = parseRosterText(e.target.value).length + ' 位專員（尚未儲存）';
+});
+document.getElementById('manager-input').addEventListener('input', (e)=>{
+  document.getElementById('manager-count').textContent = Object.keys(parseManagerText(e.target.value)).length + ' 筆對照（尚未儲存）';
+});
 document.getElementById('btn-save-roster').onclick = async ()=>{
   const text = document.getElementById('roster-input').value;
   state.roster = parseRosterText(text);
