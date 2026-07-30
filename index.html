@@ -616,15 +616,32 @@ function renderTable(rows){
   tbl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
 }
 
+function fixStickyOffsets(){
+  const tbl = document.getElementById('report-table');
+  const c1 = tbl.querySelector('.id1');
+  const c2 = tbl.querySelector('.id2');
+  const c3 = tbl.querySelector('.id3');
+  if(!c1 || !c2 || !c3) return;
+  const w1 = c1.getBoundingClientRect().width;
+  const w2 = c2.getBoundingClientRect().width;
+  const w3 = c3.getBoundingClientRect().width;
+  tbl.querySelectorAll('.id1').forEach(el=> el.style.left = '0px');
+  tbl.querySelectorAll('.id2').forEach(el=> el.style.left = w1 + 'px');
+  tbl.querySelectorAll('.id3').forEach(el=> el.style.left = (w1+w2) + 'px');
+  tbl.querySelectorAll('.id4').forEach(el=> el.style.left = (w1+w2+w3) + 'px');
+}
+
 let lastRows = [];
 document.getElementById('btn-generate').onclick = ()=>{
   const {rows, warnings} = computeReport();
   lastRows = rows;
   renderTable(rows);
+  fixStickyOffsets();
   const wbox = document.getElementById('warnings');
   wbox.innerHTML = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
   document.getElementById('gen-status').textContent = `已產出 ${rows.length} 位專員資料`;
 };
+window.addEventListener('resize', ()=>{ if(lastRows.length) fixStickyOffsets(); });
 
 document.getElementById('btn-export-xlsx').onclick = ()=>{
   if(!lastRows.length){ alert('請先產出報表'); return; }
