@@ -75,6 +75,16 @@
   .mgr-block-header .spacer{flex:1;}
   .mgr-block textarea{min-height:100px;}
   .mgr-block-count{font-size:11px;color:#888;margin-top:4px;}
+  .dropzone{border:2px dashed #90a4ae;border-radius:10px;padding:34px 20px;text-align:center;color:#607d8b;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s,color .15s;margin-bottom:14px;}
+  .dropzone.dragover{background:#e3f2fd;border-color:#1976d2;color:#1976d2;}
+  .detect-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:8px;font-size:12px;background:#fafafa;flex-wrap:wrap;}
+  .detect-row .fname{font-weight:bold;}
+  .detect-row select{font-size:12px;padding:4px 6px;}
+  .next-step-card{background:#e8f5e9;border:1px solid #66bb6a;}
+  .mgr-split{display:flex;gap:12px;}
+  .mgr-col{flex:1;}
+  .mgr-col-label{font-size:11px;color:#666;display:block;margin-bottom:4px;}
+  .mgr-mismatch-warn{font-size:11px;color:#c62828;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -83,7 +93,9 @@
   const email = sessionStorage.getItem('sp_auth_email');
   const t = parseInt(sessionStorage.getItem('sp_auth_time')||'0', 10);
   const maxAgeMs = 8*60*60*1000; // 登入狀態保留 8 小時
-  const valid = email && email.toLowerCase().endsWith('@shopee.com') && (Date.now()-t) < maxAgeMs;
+  const allowedDomains = ['shopeemobile.com', 'shopee.com'];
+  const emailDomain = (email ? (email.split('@')[1]||'').toLowerCase() : '');
+  const valid = email && allowedDomains.includes(emailDomain) && (Date.now()-t) < maxAgeMs;
   if(!valid){
     window.location.href = 'index.html';
   }
@@ -123,7 +135,14 @@
 <div class="panel active" id="panel-upload">
   <div class="card">
     <h2>上傳三份明細檔</h2>
-    <p class="hint">支援 .xlsx / .xls / .csv。每份檔案僅需第一個工作表。</p>
+    <p class="hint">支援 .xlsx / .xls / .csv。可一次拖曳 1~3 個檔案，系統會依檔名/欄位自動判斷是哪一種明細表（可事後手動修正）。</p>
+    <div class="dropzone" id="dropzone">
+      <div>📥 將檔案拖曳到這裡（可一次丟 3 個），或點擊選擇檔案</div>
+      <input type="file" id="dropzone-input" multiple accept=".xlsx,.xls,.csv" style="display:none;">
+    </div>
+    <div id="detect-results"></div>
+
+    <h3 style="margin-top:18px;">或個別手動指定上傳位置</h3>
     <div class="flex">
       <div>
         <h3>① Internet Call 明細表</h3>
@@ -142,6 +161,11 @@
       </div>
     </div>
   </div>
+
+  <div class="card next-step-card" id="next-step-card" style="display:none;">
+    <p style="margin:0 0 10px;">✅ 三份明細都已讀取完成，接下來請確認欄位對應是否正確。</p>
+    <button class="primary" id="btn-goto-mapping">前往②欄位對應 →</button>
+  </div>
 </div>
 
 <!-- ② 欄位對應 -->
@@ -156,7 +180,7 @@
 <div class="panel" id="panel-roster">
   <div class="card">
     <h2>主管 + 專員名單</h2>
-    <p class="hint">每個區塊代表一位主管：填【主管信箱】【簡稱】【週次】，下方文字框貼該主管底下的專員名單，格式為 <code>Email 姓名</code>（空白分隔，例：<code>dawn.kuo@shopee.com Dawn Kuo</code>）。要新增另一位主管，直接按區塊上的「複製此區塊」即可再貼一組。報表會依區塊順序、以及區塊內貼上的順序排列，不會自動排序。</p>
+    <p class="hint">每個區塊代表一位主管：填【主管信箱】【簡稱】【週次】。下方分成兩個欄位分開貼：左邊貼 Email（每行一個），右邊貼英文姓名（每行一個），**兩邊依「行號」互相對應**（第1行對第1行），行數不一致時會出現警示。要新增另一位主管，直接按區塊上的「複製此區塊」即可再貼一組。報表會依區塊順序、以及區塊內貼上的順序排列，不會自動排序。</p>
     <div id="roster-blocks"></div>
     <div class="toolbar">
       <button class="secondary" id="btn-add-block">+ 新增主管區塊</button>
@@ -240,14 +264,14 @@ const GUESS = {
 };
 
 /* ============ Tabs ============ */
-document.querySelectorAll('.tab').forEach(t=>{
-  t.onclick=()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
-  };
-});
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+document.querySelectorAll('.tab').forEach(t=>{ t.onclick = ()=> switchTab(t.dataset.tab); });
+document.getElementById('btn-goto-mapping').onclick = ()=> switchTab('mapping');
 
 /* ============ 檔案解析 ============ */
 function readFile(file, cb){
@@ -271,34 +295,107 @@ function guessMap(headers, key){
   }
   return '';
 }
-function setupUpload(id, sourceKey, countElId){
-  document.getElementById(id).addEventListener('change', function(e){
-    const file = e.target.files[0];
-    if(!file) return;
-    readFile(file, async (rows, headers)=>{
-      state[sourceKey].rows = rows;
-      state[sourceKey].headers = headers;
-      const saved = await storageGet('colmap_'+sourceKey);
-      let map = null;
-      try{
-        const parsed = saved ? JSON.parse(saved) : null;
-        if(parsed && parsed.headers && JSON.stringify(parsed.headers.slice().sort())===JSON.stringify(headers.slice().sort())){
-          map = parsed.map;
-        }
-      }catch(err){}
-      if(!map){
-        map = {};
-        REQ[sourceKey].forEach(([key])=> map[key] = guessMap(headers, key));
-      }
-      state[sourceKey].map = map;
-      renderMapping(sourceKey);
-      document.getElementById(countElId).innerHTML = `<span class="status-ok">已讀取 ${rows.length} 筆資料</span>，欄位數：${headers.length}`;
+async function applySavedOrGuessMap(sourceKey, headers){
+  const saved = await storageGet('colmap_'+sourceKey);
+  let map = null;
+  try{
+    const parsed = saved ? JSON.parse(saved) : null;
+    if(parsed && parsed.headers && JSON.stringify(parsed.headers.slice().sort())===JSON.stringify(headers.slice().sort())){
+      map = parsed.map;
+    }
+  }catch(err){}
+  if(!map){
+    map = {};
+    REQ[sourceKey].forEach(([key])=> map[key] = guessMap(headers, key));
+  }
+  state[sourceKey].map = map;
+}
+function assignSource(sourceKey, rows, headers){
+  state[sourceKey].rows = rows;
+  state[sourceKey].headers = headers;
+  applySavedOrGuessMap(sourceKey, headers).then(()=>{
+    renderMapping(sourceKey);
+    document.getElementById('count-'+sourceKey).innerHTML = `<span class="status-ok">已讀取 ${rows.length} 筆資料</span>，欄位數：${headers.length}`;
+    checkNextStep();
+  });
+}
+function clearSource(sourceKey){
+  state[sourceKey] = {rows:[], headers:[], map:{}};
+  document.getElementById('count-'+sourceKey).textContent = '尚未上傳';
+  renderMapping(sourceKey);
+  checkNextStep();
+}
+function checkNextStep(){
+  const card = document.getElementById('next-step-card');
+  card.style.display = (state.ic.rows.length && state.chat.rows.length && state.status.rows.length) ? 'block' : 'none';
+}
+
+// 依檔名關鍵字優先判斷，其次依欄位特徵猜測
+function guessSourceType(filename, headers){
+  const fn = filename.toLowerCase();
+  if(fn.includes('internet_call')) return 'ic';
+  if(fn.includes('chat_session')) return 'chat';
+  if(fn.includes('historical_status') || fn.includes('status_log')) return 'status';
+  const h = headers.map(x=>String(x).toLowerCase());
+  if(h.some(x=>x.includes('chat owner'))) return 'chat';
+  if(h.some(x=>x.includes('sub status'))) return 'status';
+  if(h.some(x=>x.includes('last agent'))) return 'ic';
+  return null;
+}
+const SOURCE_LABEL = {ic:'Internet Call 明細', chat:'Chat 明細', status:'Status Log'};
+function addDetectRow(filename, initialType, uncertain, onChange){
+  const container = document.getElementById('detect-results');
+  const row = document.createElement('div');
+  row.className = 'detect-row';
+  const prefix = uncertain ? '⚠️ 無法自動判斷，請手動選擇：' : '系統判斷為：';
+  row.innerHTML = `<span class="fname">📄 ${filename}</span><span>${prefix}</span>
+    <select class="detect-select">
+      <option value="ic" ${initialType==='ic'?'selected':''}>${SOURCE_LABEL.ic}</option>
+      <option value="chat" ${initialType==='chat'?'selected':''}>${SOURCE_LABEL.chat}</option>
+      <option value="status" ${initialType==='status'?'selected':''}>${SOURCE_LABEL.status}</option>
+    </select>`;
+  container.appendChild(row);
+  row.querySelector('.detect-select').addEventListener('change', (e)=> onChange(e.target.value));
+}
+function handleIncomingFile(file){
+  readFile(file, (rows, headers)=>{
+    const guessed = guessSourceType(file.name, headers);
+    let currentType = guessed || 'ic';
+    assignSource(currentType, rows, headers);
+    addDetectRow(file.name, currentType, !guessed, (newType)=>{
+      if(newType === currentType) return;
+      clearSource(currentType);
+      currentType = newType;
+      assignSource(currentType, rows, headers);
     });
   });
 }
-setupUpload('file-ic','ic','count-ic');
-setupUpload('file-chat','chat','count-chat');
-setupUpload('file-status','status','count-status');
+
+/* 拖曳區 */
+const dz = document.getElementById('dropzone');
+const dzInput = document.getElementById('dropzone-input');
+['dragenter','dragover'].forEach(evt=> dz.addEventListener(evt, e=>{ e.preventDefault(); dz.classList.add('dragover'); }));
+['dragleave','drop'].forEach(evt=> dz.addEventListener(evt, e=>{ e.preventDefault(); dz.classList.remove('dragover'); }));
+dz.addEventListener('drop', e=>{
+  Array.from(e.dataTransfer.files || []).forEach(handleIncomingFile);
+});
+dz.addEventListener('click', ()=> dzInput.click());
+dzInput.addEventListener('change', (e)=>{
+  Array.from(e.target.files || []).forEach(handleIncomingFile);
+  dzInput.value = '';
+});
+
+/* 個別手動上傳（備援） */
+function setupUpload(id, sourceKey){
+  document.getElementById(id).addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    readFile(file, (rows, headers)=> assignSource(sourceKey, rows, headers));
+  });
+}
+setupUpload('file-ic','ic');
+setupUpload('file-chat','chat');
+setupUpload('file-status','status');
 
 /* ============ 欄位對應 UI ============ */
 function renderMapping(sourceKey){
@@ -331,17 +428,8 @@ document.getElementById('btn-save-mapping').onclick = async ()=>{
 };
 
 /* ============ 主管 + 專員區塊 ============ */
-function parseAgentLine(line){
-  const segs = line.split(',').map(s=>s.trim()).filter(Boolean);
-  if(!segs.length) return null;
-  const first = segs[0];
-  const m = first.match(/^(\S+)\s+(.*)$/); // "email 姓名"
-  if(m) return {email:m[1].toLowerCase(), name:m[2].trim()};
-  return {email:first.toLowerCase(), name:segs[1]||''};
-}
-function blockCounts(rosterText){
-  return rosterText.split(/\n/).map(l=>l.trim()).filter(Boolean).map(parseAgentLine).filter(a=>a && a.email).length;
-}
+function linesOf(text){ return (text||'').split(/\n/).map(l=>l.trim()).filter(Boolean); }
+function blockCounts(b){ return linesOf(b.emailsText).length; }
 function blockHTML(b){
   return `<div class="mgr-block">
     <div class="mgr-block-header">
@@ -352,18 +440,29 @@ function blockHTML(b){
       <button class="secondary btn-copy" type="button">複製此區塊</button>
       <button class="secondary btn-del" type="button">刪除</button>
     </div>
-    <textarea class="mgr-roster" placeholder="dawn.kuo@shopee.com Dawn Kuo&#10;daisy.chang@shopee.com Daisy Chang">${b.rosterText||''}</textarea>
+    <div class="mgr-split">
+      <div class="mgr-col">
+        <label class="mgr-col-label">Email（每行一位）</label>
+        <textarea class="mgr-emails" placeholder="dawn.kuo@shopee.com&#10;daisy.chang@shopee.com">${b.emailsText||''}</textarea>
+      </div>
+      <div class="mgr-col">
+        <label class="mgr-col-label">英文姓名（順序需對應左邊，每行一位）</label>
+        <textarea class="mgr-names" placeholder="Dawn Kuo&#10;Daisy Chang">${b.namesText||''}</textarea>
+      </div>
+    </div>
+    <div class="mgr-mismatch-warn" style="display:none;"></div>
     <div class="mgr-block-count">0 位專員</div>
   </div>`;
 }
-function defaultBlock(){ return {managerEmail:'', managerShort:'', batch:'', rosterText:''}; }
+function defaultBlock(){ return {managerEmail:'', managerShort:'', batch:'', emailsText:'', namesText:''}; }
 
 function getBlocksFromDOM(){
   return Array.from(document.querySelectorAll('#roster-blocks .mgr-block')).map(el=>({
     managerEmail: el.querySelector('.mgr-email').value.trim(),
     managerShort: el.querySelector('.mgr-short').value.trim(),
     batch: el.querySelector('.mgr-batch').value.trim(),
-    rosterText: el.querySelector('.mgr-roster').value
+    emailsText: el.querySelector('.mgr-emails').value,
+    namesText: el.querySelector('.mgr-names').value
   }));
 }
 function renderBlocks(blocks){
@@ -374,7 +473,8 @@ function renderBlocks(blocks){
 }
 function bindBlockEvents(el){
   updateBlockCount(el);
-  el.querySelector('.mgr-roster').addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); });
+  el.querySelector('.mgr-emails').addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); });
+  el.querySelector('.mgr-names').addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); });
   el.querySelector('.mgr-email').addEventListener('input', updateSummary);
   el.querySelector('.mgr-short').addEventListener('input', updateSummary);
   el.querySelector('.btn-copy').onclick = ()=>{
@@ -382,7 +482,8 @@ function bindBlockEvents(el){
       managerEmail: el.querySelector('.mgr-email').value.trim(),
       managerShort: el.querySelector('.mgr-short').value.trim(),
       batch: el.querySelector('.mgr-batch').value.trim(),
-      rosterText: el.querySelector('.mgr-roster').value
+      emailsText: el.querySelector('.mgr-emails').value,
+      namesText: el.querySelector('.mgr-names').value
     };
     const newEl = document.createElement('div');
     newEl.innerHTML = blockHTML(data);
@@ -399,13 +500,21 @@ function bindBlockEvents(el){
   };
 }
 function updateBlockCount(el){
-  const n = blockCounts(el.querySelector('.mgr-roster').value);
-  el.querySelector('.mgr-block-count').textContent = n + ' 位專員';
+  const emails = linesOf(el.querySelector('.mgr-emails').value);
+  const names = linesOf(el.querySelector('.mgr-names').value);
+  el.querySelector('.mgr-block-count').textContent = emails.length + ' 位專員';
+  const warnEl = el.querySelector('.mgr-mismatch-warn');
+  if(emails.length && names.length && emails.length !== names.length){
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ Email ${emails.length} 行、姓名 ${names.length} 行，行數不一致，可能會對錯人，請檢查`;
+  } else {
+    warnEl.style.display = 'none';
+  }
 }
 function updateSummary(){
   const blocks = getBlocksFromDOM();
   const mgrCount = blocks.filter(b=>b.managerEmail).length;
-  const agentCount = blocks.reduce((sum,b)=> sum + blockCounts(b.rosterText), 0);
+  const agentCount = blocks.reduce((sum,b)=> sum + blockCounts(b), 0);
   document.getElementById('blocks-summary').textContent = `${mgrCount} 位主管 / ${agentCount} 位專員（尚未儲存）`;
 }
 function buildRosterAndManagers(blocks){
@@ -414,9 +523,10 @@ function buildRosterAndManagers(blocks){
   blocks.forEach(b=>{
     const mgrEmail = (b.managerEmail||'').toLowerCase();
     if(mgrEmail) managers[mgrEmail] = b.managerShort || mgrEmail;
-    b.rosterText.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
-      const a = parseAgentLine(line);
-      if(a && a.email) roster.push({email:a.email, name:a.name, manager:mgrEmail, batch:b.batch||''});
+    const emails = linesOf(b.emailsText);
+    const names = linesOf(b.namesText);
+    emails.forEach((e,i)=>{
+      roster.push({email:e.toLowerCase(), name:names[i]||'', manager:mgrEmail, batch:b.batch||''});
     });
   });
   return {roster, managers};
