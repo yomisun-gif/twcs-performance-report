@@ -700,16 +700,19 @@ function computeReport(){
     const code = SUBMAP[sub];
     if(!code) return;
     const startV = r[stMap.start_datetime], endV = r[stMap.end_datetime];
+
+    // 規則1：Status End Time = 0（尚未結束/無效值）的資料不計算
+    const endDate = toDate(endV);
+    if(!endDate || endDate.getFullYear() <= 1899) return;
+
+    // 規則2：跨日資料（Status Start Time 與 Status End Time 不同一天，如下班到隔天）一律不計算
+    const sd = dateOnly(startV), ed = dateOnly(endV);
+    if(sd && ed && sd !== ed) return;
+
     const dur = secBetween(startV, endV);
-    if(!a.status[code]) a.status[code] = {sec:0,count:0};
-    if(code==='offline'){
-      a.status[code].count++;
-      const sd = dateOnly(startV), ed = dateOnly(endV);
-      if(sd && ed && sd===ed && dur!==null){ a.status[code].sec += dur; }
-    } else {
-      if(dur!==null) a.status[code].sec += dur;
-      a.status[code].count++;
-    }
+    if(!a.status[code]) a.status[code] = {sec:0, count:0};
+    if(dur !== null) a.status[code].sec += dur;
+    a.status[code].count++;
   });
 
   const rows = emails.map(e=>{
