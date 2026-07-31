@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>TW 客服團隊每日績效報表產生工具</title>
+<link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -77,11 +78,39 @@
 </style>
 </head>
 <body>
+<script>
+(function(){
+  const email = sessionStorage.getItem('sp_auth_email');
+  const t = parseInt(sessionStorage.getItem('sp_auth_time')||'0', 10);
+  const maxAgeMs = 8*60*60*1000; // 登入狀態保留 8 小時
+  const valid = email && email.toLowerCase().endsWith('@shopee.com') && (Date.now()-t) < maxAgeMs;
+  if(!valid){
+    window.location.href = 'index.html';
+  }
+})();
+</script>
 
 <header>
-  <h1>TW 客服團隊每日績效報表產生工具</h1>
-  <p>IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ 上傳三份明細檔即可自動產出 <span class="env-badge" id="env-badge"></span></p>
+  <div class="topbar" style="background:transparent;padding:0;">
+    <div>
+      <h1>TW 客服團隊每日績效報表產生工具</h1>
+      <p>IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ 上傳三份明細檔即可自動產出 <span class="env-badge" id="env-badge"></span></p>
+    </div>
+    <div class="user-info" id="user-info">
+      <span id="user-email-label"></span>
+      <button class="btn-secondary" id="btn-logout">登出</button>
+    </div>
+  </div>
 </header>
+<script>
+  document.getElementById('user-email-label').textContent = sessionStorage.getItem('sp_auth_email') || '';
+  document.getElementById('btn-logout').onclick = function(){
+    sessionStorage.removeItem('sp_auth_email');
+    sessionStorage.removeItem('sp_auth_name');
+    sessionStorage.removeItem('sp_auth_time');
+    window.location.href = 'index.html';
+  };
+</script>
 
 <div class="tabs">
   <div class="tab active" data-tab="upload">① 上傳資料</div>
