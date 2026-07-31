@@ -120,6 +120,7 @@
     sessionStorage.removeItem('sp_auth_email');
     sessionStorage.removeItem('sp_auth_name');
     sessionStorage.removeItem('sp_auth_time');
+    sessionStorage.removeItem('sp_auth_token');
     window.location.href = 'index.html';
   };
 </script>
@@ -904,18 +905,31 @@ document.getElementById('btn-save-gas-url').onclick = async ()=>{
   alert('已儲存 GAS 網址');
 };
 document.getElementById('btn-fetch-sheets').onclick = async ()=>{
-  const url = document.getElementById('gas-url').value.trim();
+  const base = document.getElementById('gas-url').value.trim();
   const statusEl = document.getElementById('sheets-status');
-  if(!url){ alert('請先填入 GAS Web App 網址'); return; }
+  if(!base){ alert('請先填入 GAS Web App 網址'); return; }
+  const token = sessionStorage.getItem('sp_auth_token') || '';
+  if(!token){
+    statusEl.textContent = '找不到登入憑證，請登出後重新登入一次再試（這是更新此功能後首次需要）。';
+    return;
+  }
+  const url = base + (base.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
   statusEl.textContent = '讀取中...';
   try{
     const res = await fetch(url);
     const data = await res.json();
-    if(data.error){ statusEl.textContent = '錯誤：' + data.error; return; }
+    if(data.error){
+      if(String(data.error).startsWith('unauthorized')){
+        statusEl.textContent = '登入憑證已過期或無效，請登出重新登入後再試一次。';
+      } else {
+        statusEl.textContent = '錯誤：' + data.error;
+      }
+      return;
+    }
     renderSheetsTable(data.headers||[], data.rows||[]);
     statusEl.textContent = `${data.dateRangeFrom} ~ ${data.dateRangeTo}，共 ${data.totalRows} 筆`;
   }catch(err){
-    statusEl.textContent = '讀取失敗：' + err.message + '（可能是網址錯誤或未登入公司帳號）';
+    statusEl.textContent = '讀取失敗：' + err.message;
   }
 };
 function renderSheetsTable(headers, rows){
