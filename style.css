@@ -1,0 +1,14 @@
+:root{
+  --primary:#1976d2;
+  --primary-dark:#125aa0;
+  --bg:#f4f5f7;
+  --ink:#1a1a2e;
+}
+*{box-sizing:border-box;}
+body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:var(--bg);color:#222;}
+.btn-primary{background:var(--primary);color:#fff;border:none;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:13px;}
+.btn-primary:hover{background:var(--primary-dark);}
+.btn-secondary{background:#eee;border:1px solid #ccc;border-radius:4px;padding:8px 16px;cursor:pointer;font-size:13px;}
+.topbar{background:var(--ink);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;}
+.topbar .brand{font-size:15px;font-weight:bold;}
+.topbar .user-info{font-size:12px;color:#ccc;display:flex;align-items:center;gap:10px;}
