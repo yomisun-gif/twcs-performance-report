@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TW 客服團隊工具</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  html,body{height:100%;}
+  .center-wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:40px 36px;text-align:center;max-width:360px;width:100%;}
+  .login-card h1{font-size:18px;margin:0 0 6px;color:var(--ink);}
+  .login-card p{font-size:13px;color:#888;margin:0 0 28px;}
+  .gsi-wrap{display:flex;justify-content:center;}
+  .login-error{margin-top:16px;font-size:12px;color:#c62828;min-height:16px;}
+  .footnote{margin-top:24px;font-size:11px;color:#bbb;}
+</style>
+</head>
+<body>
+
+<div class="center-wrap">
+  <div class="login-card">
+    <h1>TW 客服團隊工具</h1>
+    <p>請使用 Google 帳號登入</p>
+
+    <!--
+      重要：請把下面 data-client_id 換成您在 Google Cloud Console 申請的 OAuth Client ID
+      申請步驟見對話中的說明
+    -->
+    <div id="g_id_onload"
+      data-client_id="1065926217249-7ms3cb5dsfodmmpcqunp8k0ab44puvv6.apps.googleusercontent.com"
+      data-hd="shopee.com"
+      data-callback="handleCredentialResponse"
+      data-auto_prompt="false">
+    </div>
+    <div class="gsi-wrap">
+      <div class="g_id_signin"
+        data-type="standard"
+        data-shape="pill"
+        data-theme="outline"
+        data-text="signin_with"
+        data-size="large"
+        data-locale="zh_TW">
+      </div>
+    </div>
+
+    <div class="login-error" id="login-error"></div>
+    <div class="footnote">僅限 @shopee.com 網域帳號可進入</div>
+  </div>
+</div>
+
+<script>
+function parseJwt(token){
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+  const jsonPayload = decodeURIComponent(
+    atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('')
+  );
+  return JSON.parse(jsonPayload);
+}
+
+function handleCredentialResponse(response){
+  const errEl = document.getElementById('login-error');
+  try{
+    const payload = parseJwt(response.credential);
+    const email = payload.email || '';
+    const hd = payload.hd || '';
+    const isShopee = hd === 'shopee.com' || email.toLowerCase().endsWith('@shopee.com');
+    if(!isShopee){
+      errEl.textContent = '僅限 shopee.com 網域帳號登入，請改用公司帳號再試一次。';
+      return;
+    }
+    sessionStorage.setItem('sp_auth_email', email);
+    sessionStorage.setItem('sp_auth_name', payload.name || '');
+    sessionStorage.setItem('sp_auth_time', String(Date.now()));
+    window.location.href = 'app.html';
+  }catch(e){
+    errEl.textContent = '登入驗證失敗，請重新整理後再試一次。';
+  }
+}
+</script>
+</body>
+</html>
