@@ -22,7 +22,7 @@
 <div class="center-wrap">
   <div class="login-card">
     <h1>TW 客服團隊工具</h1>
-    <p>請使用 Google 帳號登入</p>
+    <p>請使用 Shopee 公司 Google 帳號登入</p>
 
     <!--
       重要：請把下面 data-client_id 換成您在 Google Cloud Console 申請的 OAuth Client ID
@@ -30,7 +30,7 @@
     -->
     <div id="g_id_onload"
       data-client_id="1065926217249-7ms3cb5dsfodmmpcqunp8k0ab44puvv6.apps.googleusercontent.com"
-      data-hd="shopee.com"
+      data-hd="shopeemobile.com"
       data-callback="handleCredentialResponse"
       data-auto_prompt="false">
     </div>
@@ -46,7 +46,7 @@
     </div>
 
     <div class="login-error" id="login-error"></div>
-    <div class="footnote">僅限 @shopee.com 網域帳號可進入</div>
+    <div class="footnote">僅限公司 Google 網域帳號可進入</div>
   </div>
 </div>
 
@@ -66,14 +66,17 @@ function handleCredentialResponse(response){
     const payload = parseJwt(response.credential);
     const email = payload.email || '';
     const hd = payload.hd || '';
-    const isShopee = hd === 'shopee.com' || email.toLowerCase().endsWith('@shopee.com');
+    const allowedDomains = ['shopeemobile.com', 'shopee.com'];
+    const emailDomain = (email.split('@')[1] || '').toLowerCase();
+    const isShopee = allowedDomains.includes(hd) || allowedDomains.includes(emailDomain);
     if(!isShopee){
-      errEl.textContent = '僅限 shopee.com 網域帳號登入，請改用公司帳號再試一次。';
+      errEl.textContent = '僅限公司網域帳號登入，請改用公司 Google 帳號再試一次。';
       return;
     }
     sessionStorage.setItem('sp_auth_email', email);
     sessionStorage.setItem('sp_auth_name', payload.name || '');
     sessionStorage.setItem('sp_auth_time', String(Date.now()));
+    sessionStorage.setItem('sp_auth_token', response.credential);
     window.location.href = 'app.html';
   }catch(e){
     errEl.textContent = '登入驗證失敗，請重新整理後再試一次。';
