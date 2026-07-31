@@ -697,7 +697,16 @@ function computeReport(){
     if(!e) return;
     const a = ensure(e);
     const sub = String(r[stMap.sub_status]||'').toLowerCase().trim();
-    const code = SUBMAP[sub];
+    let code = SUBMAP[sub];
+    if(!code){
+      // 部分資料的 Sub Status 會是複合值，例如
+      // "online for chat,online for internet call"，代表同時雙開兩渠道，
+      // 這是獨立的第三種狀態，不等於「IC + Chat」相加，需獨立歸類
+      const parts = sub.split(',').map(s=>s.trim()).filter(Boolean);
+      if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')){
+        code = 'on_ic_chat_dual';
+      }
+    }
     if(!code) return;
     const startV = r[stMap.start_datetime], endV = r[stMap.end_datetime];
 
@@ -726,7 +735,7 @@ function computeReport(){
     const acd = a.acdCount ? a.acdSum/a.acdCount : null;
     const aht = (acd!==null && acw!==null) ? acd+acw : null;
 
-    const onIC=g('on_ic'), onChat=g('on_chat'), onICChat=onIC+onChat, onCall=g('on_call'), onCase=g('on_case');
+    const onIC=g('on_ic'), onChat=g('on_chat'), onICChat=g('on_ic_chat_dual'), onCall=g('on_call'), onCase=g('on_case');
     const busyWrap=g('busy_wrapup'), busyTrain=g('busy_training'), busyMeet=g('busy_meeting'),
           busyCoach=g('busy_coaching'), busyEsc=g('busy_escalation'), busyOut=g('busy_outbound');
     const awayBreak=g('away_break'), awayMeal=g('away_meal'), awayBreakMeal=awayBreak+awayMeal,
