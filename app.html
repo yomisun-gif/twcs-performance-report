@@ -130,7 +130,6 @@
   <div class="tab" data-tab="mapping">② 欄位對應</div>
   <div class="tab" data-tab="roster">③ 專員名單 / 主管簡稱</div>
   <div class="tab" data-tab="result">④ 報表結果</div>
-  <div class="tab" data-tab="sheets">⑤ 近期成績(Sheets)</div>
 </div>
 
 <!-- ① 上傳 -->
@@ -207,20 +206,6 @@
   <div class="report-wrap"><table class="report" id="report-table"></table></div>
 </div>
 
-<!-- ⑤ 近期成績（Google Sheets） -->
-<div class="panel" id="panel-sheets">
-  <div class="card">
-    <h2>近期成績（讀取 Google Sheets）</h2>
-    <p class="hint">透過 GAS Web App 讀取「💯每日成績(各項)」分頁，只回傳今天往前7天的資料。Sheet 本身維持私有，存取權限由 GAS 部署設定與 Google 登入狀態把關，此頁不會直接接觸 Sheet。</p>
-    <div class="toolbar">
-      <label>GAS Web App 網址：<input type="text" id="gas-url" style="width:420px;" value="https://script.google.com/a/macros/shopee.com/s/AKfycbz4xXw6eJVuz_i1vP3qiNekPj8VFNf1Paw74uN8Pg2NGSrpnP7fZm2wXhTmARDLHTnHOA/exec" placeholder="https://script.google.com/.../exec"></label>
-      <button class="secondary" id="btn-save-gas-url">儲存網址</button>
-      <button class="primary" id="btn-fetch-sheets">讀取近7天資料</button>
-      <span class="badge" id="sheets-status"></span>
-    </div>
-  </div>
-  <div class="report-wrap"><table class="report" id="sheets-table"></table></div>
-</div>
 
 <script>
 /* ============ 儲存層：優先用 Claude artifact 的 window.storage，
@@ -257,7 +242,7 @@ const REQ = {
   ],
   chat: [
     ['chat_owner','Chat Owner（負責專員 Email，計算產能用）'],
-    ['csat','CSAT（值為 Good/Bad/Average/- 等評價文字）']
+    ['csat','CSAT Level（值為 Good/Bad/Average 等評價文字）']
   ],
   status: [
     ['email','專員 Email'],
@@ -272,7 +257,7 @@ const GUESS = {
   call_end_time:['call end time','end time'],
   last_routed_time:['last routed','routed to agent'],
   is_answered:['is answered','answered'],
-  csat:['csat'],
+  csat:['csat level','csat'],
   chat_owner:['chat owner','owner'],
   email:['email'],
   sub_status:['sub status','substatus'],
@@ -676,15 +661,17 @@ function computeReport(){
   });
 
   // ---- Chat ----
+  // 滿意度 = Chat Good CSAT / (Chat Good CSAT + Chat Bad CSAT)
+  // Good/Bad 定義：Chat Data 表中「CSAT Level」欄位完全等於 Good / Bad（不分大小寫，去除前後空白）
   state.chat.rows.forEach(r=>{
     const e = String(r[chatMap.chat_owner]||'').toLowerCase().trim();
     if(!e) return;
     const a = ensure(e);
     a.chatCount++;
-    const csat = String(r[chatMap.csat]||'').trim();
-    if(/good/i.test(csat)) a.chatGood++;
-    else if(/bad/i.test(csat)) a.chatBad++;
-    else if(/average|avg/i.test(csat)) a.chatAvg++;
+    const csat = String(r[chatMap.csat]||'').trim().toLowerCase();
+    if(csat === 'good') a.chatGood++;
+    else if(csat === 'bad') a.chatBad++;
+    else if(csat === 'average' || csat === 'avg') a.chatAvg++;
   });
 
   // ---- Status Log ----
@@ -893,53 +880,6 @@ document.getElementById('btn-export-html').onclick = ()=>{
   a.download = `TW客服每日績效報表_${dateStr}.html`;
   a.click();
 };
-
-/* ============ ⑤ 近期成績（Google Sheets） ============ */
-async function loadGasUrl(){
-  const saved = await storageGet('gas_url');
-  if(saved) document.getElementById('gas-url').value = saved;
-}
-loadGasUrl();
-document.getElementById('btn-save-gas-url').onclick = async ()=>{
-  await storageSet('gas_url', document.getElementById('gas-url').value.trim());
-  alert('已儲存 GAS 網址');
-};
-document.getElementById('btn-fetch-sheets').onclick = async ()=>{
-  const base = document.getElementById('gas-url').value.trim();
-  const statusEl = document.getElementById('sheets-status');
-  if(!base){ alert('請先填入 GAS Web App 網址'); return; }
-  const token = sessionStorage.getItem('sp_auth_token') || '';
-  if(!token){
-    statusEl.textContent = '找不到登入憑證，請登出後重新登入一次再試（這是更新此功能後首次需要）。';
-    return;
-  }
-  const url = base + (base.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
-  statusEl.textContent = '讀取中...';
-  try{
-    const res = await fetch(url);
-    const data = await res.json();
-    if(data.error){
-      if(String(data.error).startsWith('unauthorized')){
-        statusEl.textContent = '登入憑證已過期或無效，請登出重新登入後再試一次。';
-      } else {
-        statusEl.textContent = '錯誤：' + data.error;
-      }
-      return;
-    }
-    renderSheetsTable(data.headers||[], data.rows||[]);
-    statusEl.textContent = `${data.dateRangeFrom} ~ ${data.dateRangeTo}，共 ${data.totalRows} 筆`;
-  }catch(err){
-    statusEl.textContent = '讀取失敗：' + err.message;
-  }
-};
-function renderSheetsTable(headers, rows){
-  const tbl = document.getElementById('sheets-table');
-  const h = '<thead><tr>' + headers.map(x=>`<th>${x}</th>`).join('') + '</tr></thead>';
-  const b = '<tbody>' + rows.map(r=>
-    '<tr>' + r.map(c=> `<td>${(c===''||c===null||c===undefined) ? '-' : c}</td>`).join('') + '</tr>'
-  ).join('') + '</tbody>';
-  tbl.innerHTML = h + b;
-}
 </script>
 </body>
 </html>
