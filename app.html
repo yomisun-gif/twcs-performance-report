@@ -175,6 +175,11 @@
   <div class="card"><h2>Chat 明細欄位對應</h2><div id="map-chat"></div></div>
   <div class="card"><h2>Status Log 欄位對應</h2><div id="map-status"></div></div>
   <button class="primary" id="btn-save-mapping">儲存對應（下次上傳同結構檔案將自動套用）</button>
+
+  <div class="card next-step-card" style="margin-top:16px;">
+    <p style="margin:0 0 10px;">✅ 欄位對應通常只需確認一次是否正確，不需要每次都調整。確認沒問題後可以直接前往下一步。</p>
+    <button class="primary" id="btn-goto-roster">前往③專員名單 →</button>
+  </div>
 </div>
 
 <!-- ③ 專員名單 -->
@@ -274,6 +279,7 @@ function switchTab(name){
 }
 document.querySelectorAll('.tab').forEach(t=>{ t.onclick = ()=> switchTab(t.dataset.tab); });
 document.getElementById('btn-goto-mapping').onclick = ()=> switchTab('mapping');
+document.getElementById('btn-goto-roster').onclick = ()=> switchTab('roster');
 
 /* ============ 檔案解析 ============ */
 function readFile(file, cb){
@@ -869,14 +875,29 @@ document.getElementById('btn-generate').onclick = ()=>{
 };
 window.addEventListener('resize', ()=>{ if(lastRows.length) fixStickyOffsets(); });
 
+// 依區塊交界（Call→Chat、Chat→Online）自動插入空白欄，比照目的地報表排版
+function buildExportColumns(){
+  const cols = [];
+  let prevBlk = null;
+  COLS.forEach(c=>{
+    if((prevBlk==='ic' && c.blk==='chat') || (prevBlk==='chat' && c.blk==='online')){
+      cols.push(null); // null 代表空白分隔欄
+    }
+    cols.push(c);
+    prevBlk = c.blk;
+  });
+  return cols;
+}
+
 document.getElementById('btn-export-xlsx').onclick = ()=>{
   if(!lastRows.length){ alert('請先產出報表'); return; }
   const dateStr = document.getElementById('report-date').value || new Date().toISOString().slice(0,10);
-  const header1 = ['組別','Batch','日期','Agent'].concat(COLS.map(c=>BLK_LABEL[c.blk]));
-  const header2 = ['','','',''].concat(COLS.map(c=>c.l));
+  const exportCols = buildExportColumns();
+  const header1 = ['Agent'].concat(exportCols.map(c=> c ? BLK_LABEL[c.blk] : ''));
+  const header2 = [''].concat(exportCols.map(c=> c ? c.l : ''));
   const data = [header1, header2];
   lastRows.forEach(r=>{
-    data.push([r.manager, r.batch||'-', dateStr, r.name].concat(COLS.map(c=>r[c.k])));
+    data.push([r.name].concat(exportCols.map(c=> c ? r[c.k] : '')));
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
