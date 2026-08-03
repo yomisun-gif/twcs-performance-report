@@ -68,7 +68,7 @@ const GUESS = {
 };
 
 /* ============ Tabs ============ */
-const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能'};
+const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能', dashboard:'產能儀表板'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
