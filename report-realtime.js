@@ -18,6 +18,38 @@ function pctRT(fraction){
 function avgOrNull(sum, n){ return n>0 ? sum/n : null; }
 function numOrDash(n){ return (n===null || n===undefined) ? '-' : n.toFixed(1); }
 
+// ---- 條件式格式門檻 ----
+const CSAT_ALERT_THRESHOLD = 0.97;      // 滿意度 < 97% 標紅
+const ONCASE_ALERT_THRESHOLD_SEC = 5400; // 文書 >= 1/16天(1:30:00) 標紅
+
+function csatCellClass(fraction){
+  return (fraction !== null && fraction < CSAT_ALERT_THRESHOLD) ? ' class="cell-alert"' : '';
+}
+function onCaseCellClass(sec){
+  return (sec >= ONCASE_ALERT_THRESHOLD_SEC) ? ' class="cell-alert"' : '';
+}
+// 產能低於基準值就標紅：要求 >0（有出勤）且 < 基準
+function belowAvgCellClass(value, benchmark){
+  return (value > 0 && benchmark !== null && value < benchmark) ? ' class="cell-alert"' : '';
+}
+
+// ---- 主管識別色（低飽和度，各主管一個顏色，深色模式另有一套） ----
+const MGR_PALETTE = [
+  {light:{bg:'#E5EEF5',text:'#25597E'}, dark:{bg:'#273B49',text:'#81B5DA'}},
+  {light:{bg:'#E5F5ED',text:'#257E52'}, dark:{bg:'#274938',text:'#81DAAD'}},
+  {light:{bg:'#EEE5F5',text:'#59257E'}, dark:{bg:'#3B2749',text:'#B581DA'}},
+  {light:{bg:'#F5EEE5',text:'#7E5925'}, dark:{bg:'#493B27',text:'#DAB581'}},
+  {light:{bg:'#F5E5F0',text:'#7E2561'}, dark:{bg:'#49273E',text:'#DA81BC'}},
+  {light:{bg:'#EDF5E5',text:'#527E25'}, dark:{bg:'#384927',text:'#ADDA81'}},
+  {light:{bg:'#E8E5F5',text:'#34257E'}, dark:{bg:'#2D2749',text:'#8F81DA'}},
+  {light:{bg:'#F5E9E5',text:'#7E3B25'}, dark:{bg:'#493027',text:'#DA9781'}}
+];
+function mgrColor(index){
+  const isDark = document.documentElement.classList.contains('dark');
+  const pair = MGR_PALETTE[index % MGR_PALETTE.length];
+  return isDark ? pair.dark : pair.light;
+}
+
 // 把 buildRawAgentStats() 的原始 agents 轉成這份報表要用的精簡欄位
 function extractRealtimeAgent(email, a){
   const onCaseSec = (a.status && a.status.on_case) ? a.status.on_case.sec : 0;
@@ -94,27 +126,35 @@ function renderOrgBar(dateStr, timeStr, summary){
   </div>`;
 }
 
-function renderManagerTable(mgr){
+function renderManagerTable(mgr, orgSummary, index){
   const g = mgr.groupAvg;
+  const color = mgrColor(index);
   const avgRow = `<tr class="rt-avg-row">
     <td>組平均</td>
-    <td>${numOrDash(g.callAvg)}</td><td>${pctRT(g.callCsatAvg)}</td>
-    <td>${numOrDash(g.chatAvg)}</td><td>${pctRT(g.chatCsatAvg)}</td>
-    <td>${numOrDash(g.totalAvg)}</td><td>${secToHMSRT(g.onCaseAvg)}</td>
+    <td${belowAvgCellClass(g.callAvg, orgSummary.callAvg)}>${numOrDash(g.callAvg)}</td>
+    <td${csatCellClass(g.callCsatAvg)}>${pctRT(g.callCsatAvg)}</td>
+    <td${belowAvgCellClass(g.chatAvg, orgSummary.chatAvg)}>${numOrDash(g.chatAvg)}</td>
+    <td${csatCellClass(g.chatCsatAvg)}>${pctRT(g.chatCsatAvg)}</td>
+    <td${belowAvgCellClass(g.totalAvg, orgSummary.totalAvg)}>${numOrDash(g.totalAvg)}</td>
+    <td${onCaseCellClass(g.onCaseAvg||0)}>${secToHMSRT(g.onCaseAvg)}</td>
   </tr>`;
   const agentRows = mgr.agents.map(a=>{
-    const callCsat = (a.icGood+a.icBad)>0 ? pctRT(a.icGood/(a.icGood+a.icBad)) : '-';
-    const chatCsat = (a.chatGood+a.chatBad)>0 ? pctRT(a.chatGood/(a.chatGood+a.chatBad)) : '-';
+    const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
+    const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
+    const total = a.icCount+a.chatCount;
     return `<tr>
       <td>${a.name}${a.halfDay?' (半)':''}</td>
-      <td>${a.icCount}</td><td>${callCsat}</td>
-      <td>${a.chatCount}</td><td>${chatCsat}</td>
-      <td>${a.icCount+a.chatCount}</td><td>${secToHMSRT(a.onCaseSec)}</td>
+      <td${belowAvgCellClass(a.icCount, g.callAvg)}>${a.icCount}</td>
+      <td${csatCellClass(callFrac)}>${callFrac!==null?pctRT(callFrac):'-'}</td>
+      <td${belowAvgCellClass(a.chatCount, g.chatAvg)}>${a.chatCount}</td>
+      <td${csatCellClass(chatFrac)}>${chatFrac!==null?pctRT(chatFrac):'-'}</td>
+      <td${belowAvgCellClass(total, g.totalAvg)}>${total}</td>
+      <td${onCaseCellClass(a.onCaseSec)}>${secToHMSRT(a.onCaseSec)}</td>
     </tr>`;
   }).join('');
   return `<table class="rt-mgr-table">
     <thead>
-      <tr><th class="rt-mgr-name" colspan="7">${mgr.managerShort}</th></tr>
+      <tr><th class="rt-mgr-name" colspan="7" style="background:${color.bg};color:${color.text};">${mgr.managerShort}</th></tr>
       <tr><th>姓名</th><th>Call產能</th><th>Call滿意度</th><th>Chat產能</th><th>Chat滿意度</th><th>Total產能</th><th>文書</th></tr>
     </thead>
     <tbody>${avgRow}${agentRows}</tbody>
@@ -126,7 +166,7 @@ function renderSkillSection(title, dateStr, timeStr, list){
     return `<div class="rt-skill-title"><span class="dot"></span>${title}</div><p class="rt-empty-note">目前沒有符合條件的專員資料（計入成績已勾選，且當時段已有 Call 或 Chat 產能）。</p>`;
   }
   const {orgSummary, managers} = summarizeSkillGroup(list);
-  const mgrTables = managers.map(renderManagerTable).join('');
+  const mgrTables = managers.map((mgr,i)=> renderManagerTable(mgr, orgSummary, i)).join('');
   return `<div class="rt-skill-title"><span class="dot"></span>${title}</div>
     ${renderOrgBar(dateStr, timeStr, orgSummary)}
     <div class="rt-managers-row">${mgrTables}</div>`;
