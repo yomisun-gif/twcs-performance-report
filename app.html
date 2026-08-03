@@ -3,8 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <title>TW 客服團隊每日績效報表產生工具</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // 提早套用深色模式，避免先閃一下亮色再變暗色
+  try{ if(localStorage.getItem('ui_theme')==='dark') document.documentElement.classList.add('dark'); }catch(e){}
+</script>
 <style>
   :root{
     /* ---- 品牌色系（從 #EC5233 展開）---- */
@@ -32,6 +37,35 @@
     --id-col1:60px; --id-col2:80px; --id-col3:90px; --id-col4:110px;
     --radius:10px;
   }
+
+  /* ---- 深色模式：延續同一套色相系統，只調整明度/飽和度 ---- */
+  html.dark{
+    --primary-tint:#432119;
+    --primary-dark:#F06A4C;
+    --text:#EAECF0;
+    --text-secondary:#969CA6;
+    --bg:#16171D;
+    --surface:#1F2128;
+    --border:#32353E;
+
+    --ic-color:#253041;      --ic-border:#6992D3;
+    --chat-color:#25413E;    --chat-border:#69D3C7;
+    --online-color:#413725;  --online-border:#D3AC69;
+    --busy-color:#2F2541;    --busy-border:#9069D3;
+    --away-color:#412533;    --away-border:#D3699E;
+    --offline-color:#252E41; --offline-border:#698CD3;
+    --total-color:#412A25;   --total-border:#D37C69;
+  }
+  html.dark .warn-box{background:#332A12;border-color:#7A5E1E;color:#F0C36D;}
+  html.dark .next-step-card{background:#16321A;border-color:#3F7A4A;}
+  html.dark .next-step-card p{color:#8FD69B;}
+  html.dark .mgr-mismatch-warn{color:#FF9B9B;}
+  html.dark .btn-row-del:hover{background:#432119;color:#FF9B9B;}
+  html.dark table.rank-table tbody tr:nth-child(1){background:#3A2E12;}
+  html.dark table.rank-table tbody tr:nth-child(2){background:#2A2C31;}
+  html.dark table.rank-table tbody tr:nth-child(3){background:#3A2418;}
+  html.dark .cell-alert{background:#4A1F1F !important;color:#FF9B9B !important;}
+  html.dark button.secondary{background:var(--surface);color:var(--text);}
   *{box-sizing:border-box;}
   body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:var(--bg);color:var(--text);}
 
@@ -44,8 +78,8 @@
   .tab{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;font-size:13.5px;color:var(--text-secondary);border-radius:8px;border-left:3px solid transparent;transition:background .12s,color .12s;}
   .tab:hover{background:var(--bg);color:var(--text);}
   .tab.active{background:var(--primary-tint);color:var(--primary-dark);font-weight:700;border-left-color:var(--primary);}
-  .nav-num{width:20px;height:20px;border-radius:50%;background:var(--border);color:var(--text-secondary);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .tab.active .nav-num{background:var(--primary);color:#fff;}
+  .nav-icon{width:20px;font-size:15px;text-align:center;flex-shrink:0;}
+  .nav-divider{height:1px;background:var(--border);margin:8px 6px;}
 
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar-slim{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
@@ -152,6 +186,7 @@
   table.rt-mgr-table td:first-child,table.rt-mgr-table th:first-child{text-align:left;}
   tr.rt-avg-row td{background:var(--primary-tint);font-weight:700;color:var(--primary-dark);}
   .rt-empty-note{color:var(--text-secondary);font-size:12px;padding:10px;}
+  .cell-alert{background:#FCE4E4 !important;color:#B91C1C !important;font-weight:700;}
   .rank-columns{display:flex;gap:16px;flex-wrap:wrap;}
   table.rank-table{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex:1;min-width:220px;font-variant-numeric:tabular-nums;}
   table.rank-table th,table.rank-table td{border:1px solid var(--border);padding:7px 12px;text-align:center;}
@@ -191,12 +226,14 @@
 <aside class="sidebar">
   <div class="brand"><span class="dot"></span>TW 客服績效工具</div>
   <nav class="nav">
-    <div class="tab active" data-tab="upload"><span class="nav-num">1</span>上傳資料</div>
-    <div class="tab" data-tab="mapping"><span class="nav-num">2</span>欄位對應</div>
-    <div class="tab" data-tab="roster"><span class="nav-num">3</span>專員名單</div>
-    <div class="tab" data-tab="result"><span class="nav-num">4</span>報表結果</div>
-    <div class="tab" data-tab="realtime"><span class="nav-num">5</span>即時產能</div>
-    <div class="tab" data-tab="dashboard"><span class="nav-num">6</span>產能儀表板</div>
+    <div class="tab active" data-tab="upload"><span class="nav-icon">📤</span>上傳資料</div>
+    <div class="tab" data-tab="mapping"><span class="nav-icon">🔗</span>欄位對應</div>
+    <div class="tab" data-tab="roster"><span class="nav-icon">👥</span>專員名單</div>
+    <div class="tab" data-tab="result"><span class="nav-icon">📊</span>日報表</div>
+    <div class="tab" data-tab="realtime"><span class="nav-icon">⚡</span>即時產能</div>
+    <div class="tab" data-tab="dashboard"><span class="nav-icon">🏆</span>產能儀表板</div>
+    <div class="nav-divider"></div>
+    <div class="tab" data-tab="about"><span class="nav-icon">ℹ️</span>關於</div>
   </nav>
 </aside>
 <div class="main">
@@ -206,6 +243,7 @@
       <p class="page-sub">IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ Hourly 外撥通數 <span class="env-badge" id="env-badge"></span></p>
     </div>
     <div class="user-info" id="user-info">
+      <button class="btn-secondary" id="btn-theme-toggle" title="切換深色模式">🌙</button>
       <span id="user-email-label"></span>
       <button class="btn-secondary" id="btn-logout">登出</button>
     </div>
@@ -219,6 +257,7 @@
       sessionStorage.removeItem('sp_auth_token');
       window.location.href = 'index.html';
     };
+    document.getElementById('btn-theme-toggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
   </script>
 
   <div class="content">
@@ -354,6 +393,35 @@
       <button class="primary" id="btn-copy-announce">📋 複製公告文字</button>
       <span class="badge" id="copy-status"></span>
     </div>
+  </div>
+</div>
+
+<!-- 關於 -->
+<div class="panel" id="panel-about">
+  <div class="card">
+    <h2>關於這個工具</h2>
+    <p class="hint" style="font-size:13px;line-height:1.9;color:var(--text);">
+      TW 客服團隊績效工具，把上傳明細、算指標、產報表這件事整合成一個網頁流程，取代原本手動整理 Excel 的方式。所有上傳的檔案跟計算結果只存在您自己的瀏覽器裡，不會上傳到任何伺服器。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>建議操作順序</h2>
+    <p class="hint" style="line-height:2;">
+      <b>📤 上傳資料</b>：拖曳或選擇四份明細檔（Internet Call / Chat Data / Status Log / Hourly Activity），系統會自動判斷檔案類型。<br>
+      <b>🔗 欄位對應</b>：確認每份檔案的欄位有沒有對到正確位置，通常只需要第一次設定，之後上傳同結構的檔案會自動套用。<br>
+      <b>👥 專員名單</b>：設定主管、簡稱、週次，以及底下的專員名單（Email、姓名、全技能/BBT/半天/計入成績），可以匯出/匯入 JSON 檔跟其他人共用設定。<br>
+      <b>📊 日報表</b>：產出完整的每日績效報表，可匯出 Excel 或 HTML。<br>
+      <b>⚡ 即時產能</b>：一天可產出多次，依全技能/非全技能分組顯示當下產能。<br>
+      <b>🏆 產能儀表板</b>：依總產能排名，並自動產生可貼到 SeaTalk 的公告文字。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>資料儲存說明</h2>
+    <p class="hint" style="line-height:1.9;">
+      專員名單、欄位對應設定、SeaTalk 提醒事項、深色模式偏好，都存在您瀏覽器的本機儲存空間裡，換一台電腦或清除瀏覽器資料就需要重新設定（可以用「匯出名單」先備份）。上傳的明細檔案、算出來的報表結果，都只在當次瀏覽時使用，重新整理頁面就會清空，不會留存。
+    </p>
   </div>
 </div>
 
