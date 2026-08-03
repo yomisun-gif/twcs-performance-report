@@ -152,6 +152,14 @@
   table.rt-mgr-table td:first-child,table.rt-mgr-table th:first-child{text-align:left;}
   tr.rt-avg-row td{background:var(--primary-tint);font-weight:700;color:var(--primary-dark);}
   .rt-empty-note{color:var(--text-secondary);font-size:12px;padding:10px;}
+  .rank-columns{display:flex;gap:16px;flex-wrap:wrap;}
+  table.rank-table{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex:1;min-width:220px;font-variant-numeric:tabular-nums;}
+  table.rank-table th,table.rank-table td{border:1px solid var(--border);padding:7px 12px;text-align:center;}
+  table.rank-table th{background:var(--primary-tint);color:var(--primary-dark);font-weight:700;font-size:13px;}
+  table.rank-table td:first-child{text-align:left;}
+  table.rank-table tbody tr:nth-child(1){background:#FFF7E6;font-weight:700;}
+  table.rank-table tbody tr:nth-child(2){background:#F5F6F7;font-weight:700;}
+  table.rank-table tbody tr:nth-child(3){background:#FCEFE4;font-weight:700;}
 
   @media (max-width: 760px){
     .app-shell{flex-direction:column;}
@@ -188,6 +196,7 @@
     <div class="tab" data-tab="roster"><span class="nav-num">3</span>專員名單</div>
     <div class="tab" data-tab="result"><span class="nav-num">4</span>報表結果</div>
     <div class="tab" data-tab="realtime"><span class="nav-num">5</span>即時產能</div>
+    <div class="tab" data-tab="dashboard"><span class="nav-num">6</span>產能儀表板</div>
   </nav>
 </aside>
 <div class="main">
@@ -317,6 +326,37 @@
   <div id="realtime-output"></div>
 </div>
 
+<!-- ⑥ 產能儀表板 -->
+<div class="panel" id="panel-dashboard">
+  <div class="card">
+    <h2>產能儀表板</h2>
+    <p class="hint">依「④報表結果」同一批資料，依總產能（Call+Chat）排名，分成全部/全技能/單技能三欄，畫面排版做好看方便您直接截圖。日期取自④頁的「報表日期」欄位。</p>
+    <div class="toolbar">
+      <button class="primary" id="btn-generate-dashboard">產出排行榜</button>
+      <span class="badge" id="dashboard-status"></span>
+    </div>
+    <div id="dashboard-warnings"></div>
+  </div>
+
+  <div id="dashboard-rank-output"></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>SeaTalk 公告文字</h2>
+    <p class="hint">排名前三會自動帶入下方文字，📌提醒事項是您可以自己編輯、會自動記住的區塊。按「產生公告文字」後可以直接複製貼到 SeaTalk 群組。</p>
+    <label class="mgr-col-label">📌 固定提醒事項（可編輯，會自動記住）</label>
+    <textarea id="dashboard-boilerplate" style="min-height:160px;"></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="secondary" id="btn-save-boilerplate">儲存提醒事項</button>
+    </div>
+    <label class="mgr-col-label" style="margin-top:10px;display:block;">產出的公告文字</label>
+    <textarea id="dashboard-announce-output" style="min-height:280px;" readonly></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="primary" id="btn-copy-announce">📋 複製公告文字</button>
+      <span class="badge" id="copy-status"></span>
+    </div>
+  </div>
+</div>
+
   </div>
 </div>
 </div>
@@ -324,5 +364,6 @@
 <script src="engine.js"></script>
 <script src="report-daily.js"></script>
 <script src="report-realtime.js"></script>
+<script src="report-dashboard.js"></script>
 </body>
 </html>
