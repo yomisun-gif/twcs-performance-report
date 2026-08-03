@@ -478,10 +478,14 @@ document.getElementById('btn-export-roster').onclick = ()=>{
     blocks: blocks
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `專員名單_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
 };
 
 document.getElementById('btn-import-roster-trigger').onclick = ()=>{
