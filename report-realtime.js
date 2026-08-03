@@ -33,24 +33,29 @@ function extractRealtimeAgent(email, a){
 
 // 依技能分類彙總：回傳 { orgSummary, managers: [{managerShort, groupAvg, agents}] }
 function summarizeSkillGroup(list){
+  // list 是「計入成績」的全部人（含當天0產能的人，用來顯示列表）
+  // 但組平均/全隊平均只能算「有成績」的人，不然沒上班的0會拉低平均
   const byManager = {};
+  const managerOrder = [];
   list.forEach(a=>{
     const key = a.managerShort || '(未設定)';
-    if(!byManager[key]) byManager[key] = [];
+    if(!byManager[key]){ byManager[key] = []; managerOrder.push(key); }
     byManager[key].push(a);
   });
 
   function computeGroupStats(group){
-    const n = group.length;
-    const halfN = group.filter(a=>a.halfDay).length;
+    // 有成績 = Call 或 Chat 任一有數字就算，不管半天與否
+    const scored = group.filter(a => (a.icCount + a.chatCount) > 0);
+    const n = scored.length;
+    const halfN = scored.filter(a=>a.halfDay).length;
     const effN = n - halfN*0.5;
-    const callSum = group.reduce((s,a)=>s+a.icCount,0);
-    const chatSum = group.reduce((s,a)=>s+a.chatCount,0);
+    const callSum = scored.reduce((s,a)=>s+a.icCount,0);
+    const chatSum = scored.reduce((s,a)=>s+a.chatCount,0);
     const totalSum = callSum+chatSum;
-    const onCaseSum = group.reduce((s,a)=>s+a.onCaseSec,0);
+    const onCaseSum = scored.reduce((s,a)=>s+a.onCaseSec,0);
 
-    const callPctList = group.filter(a=>(a.icGood+a.icBad)>0).map(a=>a.icGood/(a.icGood+a.icBad));
-    const chatPctList = group.filter(a=>(a.chatGood+a.chatBad)>0).map(a=>a.chatGood/(a.chatGood+a.chatBad));
+    const callPctList = scored.filter(a=>(a.icGood+a.icBad)>0).map(a=>a.icGood/(a.icGood+a.icBad));
+    const chatPctList = scored.filter(a=>(a.chatGood+a.chatBad)>0).map(a=>a.chatGood/(a.chatGood+a.chatBad));
     const callCsatAvg = callPctList.length ? callPctList.reduce((s,v)=>s+v,0)/callPctList.length : null;
     const chatCsatAvg = chatPctList.length ? chatPctList.reduce((s,v)=>s+v,0)/chatPctList.length : null;
 
@@ -62,7 +67,8 @@ function summarizeSkillGroup(list){
     };
   }
 
-  const managers = Object.keys(byManager).sort().map(key=>({
+  // 主管排序：保留在「③專員名單」設定的區塊順序，不做字母排序
+  const managers = managerOrder.map(key=>({
     managerShort: key,
     agents: byManager[key],
     groupAvg: computeGroupStats(byManager[key])
@@ -144,7 +150,7 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
     const timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 
     const all = emails.map(e=> extractRealtimeAgent(e, agents[e]))
-      .filter(a=> a.countedInScore && (a.icCount+a.chatCount)>0);
+      .filter(a=> a.countedInScore); // 計入成績有勾就列出來，包含當天0產能的人（顯示0）
 
     const fullSkillList = all.filter(a=>a.fullSkill);
     const nonFullSkillList = all.filter(a=>!a.fullSkill);
