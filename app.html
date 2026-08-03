@@ -7,84 +7,135 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
-    --ic-color:#e3f2fd; --ic-border:#1976d2;
-    --chat-color:#e8f5e9; --chat-border:#388e3c;
-    --online-color:#fdece0; --online-border:#f57c00;
-    --busy-color:#fffde7; --busy-border:#fbc02d;
-    --away-color:#ffebee; --away-border:#d32f2f;
-    --offline-color:#eeeeee; --offline-border:#757575;
-    --total-color:#ede7f6; --total-border:#5e35b1;
+    /* ---- 品牌色系（從 #EC5233 展開）---- */
+    --primary:#EC5233;
+    --primary-dark:#D2431F;
+    --primary-tint:#FDECE6;
+    --text:#1C1F26;
+    --text-secondary:#6B7280;
+    --bg:#F7F7F8;
+    --surface:#FFFFFF;
+    --border:#E5E7EB;
+    --success:#15803D;
+    --warning:#B45309;
+
+    /* ---- 報表區塊色系：統一公式（淡底+邊框色條），色相保留、飽和度統一 ---- */
+    --ic-color:#EBF1F9;      --ic-border:#3464B2;
+    --chat-color:#ECF9F7;    --chat-border:#2E9E91;
+    --online-color:#F7F0E3;  --online-border:#C38822;
+    --busy-color:#F4F1F9;    --busy-border:#724DB2;
+    --away-color:#F9F0F5;    --away-border:#BF4080;
+    --offline-color:#EEEFF1; --offline-border:#5E636E;
+    --total-color:#FCE8E4;   --total-border:#D53D1A;
+
     --header-h:36px;
     --id-col1:60px; --id-col2:80px; --id-col3:90px; --id-col4:110px;
+    --radius:10px;
   }
   *{box-sizing:border-box;}
-  body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:#f4f5f7;color:#222;}
-  header{background:#1a1a2e;color:#fff;padding:14px 20px;}
-  header h1{margin:0;font-size:18px;}
-  header p{margin:4px 0 0;font-size:12px;color:#bbb;}
-  .tabs{display:flex;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:50;}
-  .tab{padding:12px 18px;cursor:pointer;font-size:14px;border-bottom:3px solid transparent;color:#555;}
-  .tab.active{border-bottom-color:#1976d2;color:#1976d2;font-weight:bold;}
-  .panel{display:none;padding:18px;max-width:1500px;margin:0 auto;}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:var(--bg);color:var(--text);}
+
+  /* ---- 版面：左側導覽 + 右側內容 ---- */
+  .app-shell{display:flex;min-height:100vh;}
+  .sidebar{width:216px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+  .brand{padding:20px 18px;font-size:15px;font-weight:700;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--primary);display:inline-block;}
+  .nav{padding:10px;display:flex;flex-direction:column;gap:2px;}
+  .tab{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;font-size:13.5px;color:var(--text-secondary);border-radius:8px;border-left:3px solid transparent;transition:background .12s,color .12s;}
+  .tab:hover{background:var(--bg);color:var(--text);}
+  .tab.active{background:var(--primary-tint);color:var(--primary-dark);font-weight:700;border-left-color:var(--primary);}
+  .nav-num{width:20px;height:20px;border-radius:50%;background:var(--border);color:var(--text-secondary);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .tab.active .nav-num{background:var(--primary);color:#fff;}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar-slim{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+  .page-title{font-size:16px;font-weight:700;color:var(--text);margin:0;}
+  .page-sub{margin:3px 0 0;font-size:12px;color:var(--text-secondary);}
+  .user-info{font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:12px;}
+  .content{padding:24px 28px;max-width:1500px;width:100%;}
+
+  .panel{display:none;}
   .panel.active{display:block;}
-  .card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:16px;}
-  .card h2{font-size:15px;margin:0 0 10px;}
-  .card h3{font-size:13px;margin:14px 0 8px;color:#444;}
-  .hint{font-size:12px;color:#777;margin:4px 0 10px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;}
+  .card h2{font-size:14.5px;margin:0 0 10px;font-weight:700;color:var(--text);}
+  .card h3{font-size:12.5px;margin:14px 0 8px;color:var(--text-secondary);font-weight:700;}
+  .hint{font-size:12px;color:var(--text-secondary);margin:4px 0 10px;line-height:1.6;}
   input[type=file]{font-size:13px;}
-  textarea{width:100%;min-height:130px;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:4px;}
-  select,button,input[type=date]{font-size:13px;padding:6px 10px;border-radius:4px;border:1px solid #ccc;}
-  button.primary{background:#1976d2;color:#fff;border:none;cursor:pointer;font-weight:bold;}
-  button.primary:hover{background:#125aa0;}
-  button.secondary{background:#eee;border:1px solid #ccc;cursor:pointer;}
+  textarea{width:100%;min-height:130px;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+  textarea:focus,input:focus,select:focus{outline:2px solid var(--primary-tint);outline-offset:1px;border-color:var(--primary);}
+  select,input[type=date],input[type=text]{font-size:13px;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
+  button{font-family:inherit;}
+  button.primary{background:var(--primary);color:#fff;border:none;border-radius:7px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;transition:background .12s;}
+  button.primary:hover{background:var(--primary-dark);}
+  button.secondary{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:8px 16px;cursor:pointer;font-size:13px;transition:background .12s;}
+  button.secondary:hover{background:var(--bg);}
   table.maptable{width:100%;border-collapse:collapse;font-size:12px;}
-  table.maptable th,table.maptable td{border:1px solid #e0e0e0;padding:6px 8px;text-align:left;}
-  table.maptable th{background:#fafafa;}
-  .status-ok{color:#2e7d32;font-weight:bold;}
-  .filecount{font-size:12px;color:#333;margin-top:6px;}
+  table.maptable th,table.maptable td{border:1px solid var(--border);padding:7px 9px;text-align:left;}
+  table.maptable th{background:var(--bg);color:var(--text-secondary);font-weight:700;}
+  .status-ok{color:var(--success);font-weight:700;}
+  .filecount{font-size:12px;color:var(--text-secondary);margin-top:6px;}
   .flex{display:flex;gap:16px;flex-wrap:wrap;}
   .flex>div{flex:1;min-width:280px;}
-  .report-wrap{overflow-x:auto;border:1px solid #ddd;border-radius:6px;max-height:75vh;overflow-y:auto;}
-  table.report{border-collapse:collapse;font-size:12px;white-space:nowrap;}
-  table.report th,table.report td{border:1px solid #e0e0e0;padding:5px 8px;text-align:center;}
-  table.report thead tr:nth-child(1) th{position:sticky;top:0;z-index:20;height:var(--header-h);}
-  table.report thead tr:nth-child(2) th{position:sticky;top:var(--header-h);z-index:19;height:var(--header-h);font-weight:normal;font-size:11px;}
-  .idcol{text-align:center;position:sticky;background:#fff;z-index:6;}
-  th.idcol{z-index:45 !important;background:#fafafa;}
+  .report-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);max-height:75vh;overflow-y:auto;background:var(--surface);}
+  table.report{border-collapse:collapse;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  table.report th,table.report td{border:1px solid var(--border);padding:6px 10px;text-align:center;}
+  table.report thead tr:nth-child(1) th{position:sticky;top:0;z-index:20;height:var(--header-h);font-weight:700;color:var(--text);}
+  table.report thead tr:nth-child(2) th{position:sticky;top:var(--header-h);z-index:19;height:var(--header-h);font-weight:600;font-size:11px;color:var(--text-secondary);}
+  .idcol{text-align:center;position:sticky;background:var(--surface);z-index:6;}
+  th.idcol{z-index:45 !important;background:var(--bg);}
   td.idcol{z-index:15;}
   .id1{left:0;width:var(--id-col1);} .id2{left:var(--id-col1);width:var(--id-col2);}
   .id3{left:calc(var(--id-col1) + var(--id-col2));width:var(--id-col3);}
-  .id4{left:calc(var(--id-col1) + var(--id-col2) + var(--id-col3));width:var(--id-col4);font-weight:bold;}
+  .id4{left:calc(var(--id-col1) + var(--id-col2) + var(--id-col3));width:var(--id-col4);font-weight:700;}
   .blk-ic{background:var(--ic-color);}
   .blk-chat{background:var(--chat-color);}
   .blk-online{background:var(--online-color);}
   .blk-busy{background:var(--busy-color);}
   .blk-away{background:var(--away-color);}
   .blk-offline{background:var(--offline-color);}
-  .blk-total{background:var(--total-color);font-weight:bold;}
+  .blk-total{background:var(--total-color);font-weight:700;color:var(--primary-dark);}
+  /* 區塊邊界色條：只標在表頭，作為區塊分界指示 */
+  table.report thead tr:nth-child(1) th.blk-ic{border-left:3px solid var(--ic-border);}
+  table.report thead tr:nth-child(1) th.blk-chat{border-left:3px solid var(--chat-border);}
+  table.report thead tr:nth-child(1) th.blk-online{border-left:3px solid var(--online-border);}
+  table.report thead tr:nth-child(1) th.blk-busy{border-left:3px solid var(--busy-border);}
+  table.report thead tr:nth-child(1) th.blk-away{border-left:3px solid var(--away-border);}
+  table.report thead tr:nth-child(1) th.blk-offline{border-left:3px solid var(--offline-border);}
+  table.report thead tr:nth-child(1) th.blk-total{border-left:3px solid var(--total-border);}
   .toolbar{display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
-  .badge{font-size:11px;padding:2px 8px;border-radius:10px;background:#eee;}
-  .warn-box{background:#fff8e1;border:1px solid #ffca28;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px;}
-  .env-badge{font-size:11px;color:#bbb;}
-  .mgr-block{border:1px solid #dcdcdc;border-radius:8px;padding:12px;margin-bottom:14px;background:#fafbfc;}
+  .badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg);color:var(--text-secondary);font-weight:600;}
+  .warn-box{background:#FEF6E7;border:1px solid #F0C36D;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;color:#7A4E00;}
+  .env-badge{font-size:11px;color:var(--text-secondary);}
+  .mgr-block{border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;background:var(--bg);}
   .mgr-block-header{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
-  .mgr-block-header input{font-size:13px;padding:6px 8px;border-radius:4px;border:1px solid #ccc;}
+  .mgr-block-header input{font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface);}
   .mgr-block-header input.mgr-email{width:220px;}
   .mgr-block-header input.mgr-short{width:100px;}
   .mgr-block-header input.mgr-batch{width:120px;}
   .mgr-block-header .spacer{flex:1;}
   .mgr-block textarea{min-height:100px;}
-  .mgr-block-count{font-size:11px;color:#888;margin-top:4px;}
-  .dropzone{border:2px dashed #90a4ae;border-radius:10px;padding:34px 20px;text-align:center;color:#607d8b;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s,color .15s;margin-bottom:14px;}
-  .dropzone.dragover{background:#e3f2fd;border-color:#1976d2;color:#1976d2;}
-  .detect-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:6px;margin-bottom:8px;font-size:12px;background:#fafafa;flex-wrap:wrap;}
-  .detect-row .fname{font-weight:bold;}
-  .detect-row select{font-size:12px;padding:4px 6px;}
-  .next-step-card{background:#e8f5e9;border:1px solid #66bb6a;}
+  .mgr-block-count{font-size:11px;color:var(--text-secondary);margin-top:4px;}
+  .dropzone{border:2px dashed #C7CBD1;border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:background .15s,border-color .15s,color .15s;margin-bottom:14px;}
+  .dropzone.dragover{background:var(--primary-tint);border-color:var(--primary);color:var(--primary-dark);}
+  .detect-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:12px;background:var(--bg);flex-wrap:wrap;}
+  .detect-row .fname{font-weight:700;}
+  .detect-row select{font-size:12px;padding:5px 8px;}
+  .next-step-card{background:#F0F9F0;border:1px solid #A8D9A8;}
+  .next-step-card p{color:#1E5C1E;}
   .mgr-split{display:flex;gap:12px;}
   .mgr-col{flex:1;}
-  .mgr-col-label{font-size:11px;color:#666;display:block;margin-bottom:4px;}
-  .mgr-mismatch-warn{font-size:11px;color:#c62828;margin-top:4px;}
+  .mgr-col-label{font-size:11px;color:var(--text-secondary);display:block;margin-bottom:4px;}
+  .mgr-mismatch-warn{font-size:11px;color:#B91C1C;margin-top:4px;}
+
+  @media (max-width: 760px){
+    .app-shell{flex-direction:column;}
+    .sidebar{width:100%;height:auto;position:relative;flex-direction:row;overflow-x:auto;}
+    .brand{display:none;}
+    .nav{flex-direction:row;}
+    .tab{border-left:none;border-bottom:3px solid transparent;white-space:nowrap;}
+    .tab.active{border-left-color:transparent;border-bottom-color:var(--primary);}
+    .content{padding:16px;}
+  }
 </style>
 </head>
 <body>
@@ -102,35 +153,39 @@
 })();
 </script>
 
-<header>
-  <div class="topbar" style="background:transparent;padding:0;">
+<div class="app-shell">
+<aside class="sidebar">
+  <div class="brand"><span class="dot"></span>TW 客服績效工具</div>
+  <nav class="nav">
+    <div class="tab active" data-tab="upload"><span class="nav-num">1</span>上傳資料</div>
+    <div class="tab" data-tab="mapping"><span class="nav-num">2</span>欄位對應</div>
+    <div class="tab" data-tab="roster"><span class="nav-num">3</span>專員名單</div>
+    <div class="tab" data-tab="result"><span class="nav-num">4</span>報表結果</div>
+  </nav>
+</aside>
+<div class="main">
+  <header class="topbar-slim">
     <div>
-      <h1>TW 客服團隊每日績效報表產生工具</h1>
-      <p>IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ Hourly 外撥通數 ・ 上傳四份明細檔即可自動產出 <span class="env-badge" id="env-badge"></span></p>
+      <p class="page-title" id="page-title">上傳資料</p>
+      <p class="page-sub">IC + Chat 雙渠道績效 ・ Status Log 狀態時長 ・ Hourly 外撥通數 <span class="env-badge" id="env-badge"></span></p>
     </div>
     <div class="user-info" id="user-info">
       <span id="user-email-label"></span>
       <button class="btn-secondary" id="btn-logout">登出</button>
     </div>
-  </div>
-</header>
-<script>
-  document.getElementById('user-email-label').textContent = sessionStorage.getItem('sp_auth_email') || '';
-  document.getElementById('btn-logout').onclick = function(){
-    sessionStorage.removeItem('sp_auth_email');
-    sessionStorage.removeItem('sp_auth_name');
-    sessionStorage.removeItem('sp_auth_time');
-    sessionStorage.removeItem('sp_auth_token');
-    window.location.href = 'index.html';
-  };
-</script>
+  </header>
+  <script>
+    document.getElementById('user-email-label').textContent = sessionStorage.getItem('sp_auth_email') || '';
+    document.getElementById('btn-logout').onclick = function(){
+      sessionStorage.removeItem('sp_auth_email');
+      sessionStorage.removeItem('sp_auth_name');
+      sessionStorage.removeItem('sp_auth_time');
+      sessionStorage.removeItem('sp_auth_token');
+      window.location.href = 'index.html';
+    };
+  </script>
 
-<div class="tabs">
-  <div class="tab active" data-tab="upload">① 上傳資料</div>
-  <div class="tab" data-tab="mapping">② 欄位對應</div>
-  <div class="tab" data-tab="roster">③ 專員名單 / 主管簡稱</div>
-  <div class="tab" data-tab="result">④ 報表結果</div>
-</div>
+  <div class="content">
 
 <!-- ① 上傳 -->
 <div class="panel active" id="panel-upload">
@@ -217,6 +272,9 @@
   <div class="report-wrap"><table class="report" id="report-table"></table></div>
 </div>
 
+  </div>
+</div>
+</div>
 
 <script src="engine.js"></script>
 <script src="report-daily.js"></script>
