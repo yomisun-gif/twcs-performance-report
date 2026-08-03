@@ -446,6 +446,96 @@ async function loadSavedBlocks(){
 }
 loadSavedBlocks();
 
+/* ============ 名單匯出 / 匯入 ============ */
+function normalizeAgent(a){
+  return {
+    email: String(a && a.email || '').trim().toLowerCase(),
+    name: String(a && a.name || '').trim(),
+    fullSkill: a ? a.fullSkill !== false : true,
+    bbt: !!(a && a.bbt),
+    halfDay: !!(a && a.halfDay),
+    countedInScore: a ? a.countedInScore !== false : true
+  };
+}
+function normalizeBlock(b){
+  const m = migrateBlock(b || {});
+  return {
+    managerEmail: String(m.managerEmail || '').trim(),
+    managerShort: String(m.managerShort || '').trim(),
+    batch: String(m.batch || '').trim(),
+    agents: (m.agents || []).map(normalizeAgent).filter(a => a.email)
+  };
+}
+
+document.getElementById('btn-export-roster').onclick = ()=>{
+  const blocks = getBlocksFromDOM();
+  if(!blocks.length || !blocks.some(b=>b.agents.length)){
+    alert('目前名單是空的，沒有東西可以匯出。');
+    return;
+  }
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    blocks: blocks
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `專員名單_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+};
+
+document.getElementById('btn-import-roster-trigger').onclick = ()=>{
+  document.getElementById('roster-import-input').click();
+};
+document.getElementById('roster-import-input').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    let raw;
+    try{
+      raw = JSON.parse(ev.target.result);
+    }catch(err){
+      alert('匯入失敗：不是有效的 JSON 檔案。');
+      return;
+    }
+    // 相容兩種格式：{blocks:[...]} 或直接是 [...] 陣列
+    const rawBlocks = Array.isArray(raw) ? raw : raw.blocks;
+    if(!Array.isArray(rawBlocks)){
+      alert('匯入失敗：檔案格式不符合預期（找不到 blocks 陣列）。');
+      return;
+    }
+    let blocks;
+    try{
+      blocks = rawBlocks.map(normalizeBlock).filter(b=> b.managerEmail || b.agents.length);
+    }catch(err){
+      alert('匯入失敗：內容格式有誤（' + err.message + '）。');
+      return;
+    }
+    if(!blocks.length){
+      alert('匯入失敗：檔案裡沒有有效的主管/專員資料。');
+      return;
+    }
+
+    const doReplace = confirm(
+      `即將匯入 ${blocks.length} 個主管區塊、共 ${blocks.reduce((s,b)=>s+b.agents.length,0)} 位專員。\n\n` +
+      `按「確定」= 取代目前名單\n按「取消」= 附加到目前名單後面（保留現有的）`
+    );
+
+    let finalBlocks;
+    if(doReplace){
+      finalBlocks = blocks;
+    } else {
+      const current = getBlocksFromDOM();
+      finalBlocks = current.concat(blocks);
+    }
+    renderBlocks(finalBlocks);
+    alert('匯入完成，別忘了按「儲存全部」才會真的存起來。');
+  };
+  reader.readAsText(file, 'utf-8');
+});
+
 /* ============ 計算工具函式 ============ */
 function toDate(v){
   if(v instanceof Date) return v;
