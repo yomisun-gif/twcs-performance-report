@@ -127,24 +127,42 @@ function renderSkillSection(title, dateStr, timeStr, list){
 }
 
 document.getElementById('btn-generate-realtime').onclick = ()=>{
-  const {agents, emails, warnings} = buildRawAgentStats();
-
-  const now = new Date();
-  const dateStr = (now.getMonth()+1)+'/'+now.getDate();
-  const timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-
-  const all = emails.map(e=> extractRealtimeAgent(e, agents[e]))
-    .filter(a=> a.countedInScore && (a.icCount+a.chatCount)>0);
-
-  const fullSkillList = all.filter(a=>a.fullSkill);
-  const nonFullSkillList = all.filter(a=>!a.fullSkill);
-
-  const html = renderSkillSection('全技能', dateStr, timeStr, fullSkillList)
-    + renderSkillSection('非全技能', dateStr, timeStr, nonFullSkillList);
-
-  document.getElementById('realtime-output').innerHTML = html;
-
+  const statusEl = document.getElementById('realtime-status');
   const wbox = document.getElementById('realtime-warnings');
-  wbox.innerHTML = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
-  document.getElementById('realtime-status').textContent = `已產出（${timeStr}）・全技能 ${fullSkillList.length} 人・非全技能 ${nonFullSkillList.length} 人`;
+  try{
+    if(!state.ic.rows.length && !state.chat.rows.length && !state.status.rows.length){
+      wbox.innerHTML = `<div class="warn-box"><strong>尚未上傳任何明細資料</strong>，請先到「①上傳資料」完成上傳，再回來產出即時產能。</div>`;
+      document.getElementById('realtime-output').innerHTML = '';
+      statusEl.textContent = '尚未上傳資料';
+      return;
+    }
+
+    const {agents, emails, warnings} = buildRawAgentStats();
+
+    const now = new Date();
+    const dateStr = (now.getMonth()+1)+'/'+now.getDate();
+    const timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+    const all = emails.map(e=> extractRealtimeAgent(e, agents[e]))
+      .filter(a=> a.countedInScore && (a.icCount+a.chatCount)>0);
+
+    const fullSkillList = all.filter(a=>a.fullSkill);
+    const nonFullSkillList = all.filter(a=>!a.fullSkill);
+
+    const html = renderSkillSection('全技能', dateStr, timeStr, fullSkillList)
+      + renderSkillSection('非全技能', dateStr, timeStr, nonFullSkillList);
+
+    document.getElementById('realtime-output').innerHTML = html;
+
+    let warnHtml = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
+    if(!all.length){
+      warnHtml += `<div class="warn-box"><strong>目前沒有任何專員符合條件</strong>——請確認：①「③專員名單」裡至少有人「計入成績」有勾選，②上傳的明細資料裡有這些人的通數。</div>`;
+    }
+    wbox.innerHTML = warnHtml;
+    statusEl.textContent = `已產出（${timeStr}）・全技能 ${fullSkillList.length} 人・非全技能 ${nonFullSkillList.length} 人`;
+  }catch(err){
+    console.error('即時產能產出失敗：', err);
+    statusEl.textContent = '產出失敗：' + err.message;
+    wbox.innerHTML = `<div class="warn-box"><strong>發生錯誤：</strong>${err.message}（詳細內容請按F12看Console）</div>`;
+  }
 };
