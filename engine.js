@@ -68,11 +68,14 @@ const GUESS = {
 };
 
 /* ============ Tabs ============ */
+const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
+  const titleEl = document.getElementById('page-title');
+  if(titleEl) titleEl.textContent = TAB_TITLE[name] || '';
 }
 document.querySelectorAll('.tab').forEach(t=>{ t.onclick = ()=> switchTab(t.dataset.tab); });
 document.getElementById('btn-goto-mapping').onclick = ()=> switchTab('mapping');
