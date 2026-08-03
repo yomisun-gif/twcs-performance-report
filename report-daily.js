@@ -133,8 +133,12 @@ document.getElementById('btn-export-xlsx').onclick = ()=>{
 document.getElementById('btn-export-html').onclick = ()=>{
   const dateStr = document.getElementById('report-date').value || new Date().toISOString().slice(0,10);
   const blob = new Blob(['<!DOCTYPE html><meta charset="utf-8"><title>報表</title>'+document.getElementById('report-table').outerHTML], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `TW客服每日績效報表_${dateStr}.html`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
 };
