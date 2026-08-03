@@ -68,7 +68,7 @@ const GUESS = {
 };
 
 /* ============ Tabs ============ */
-const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果'};
+const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
@@ -239,10 +239,37 @@ document.getElementById('btn-save-mapping').onclick = async ()=>{
   alert('欄位對應已儲存，下次上傳相同欄位結構的檔案會自動套用。');
 };
 
-/* ============ 主管 + 專員區塊 ============ */
+/* ============ 主管 + 專員區塊（表格式） ============ */
 function linesOf(text){ return (text||'').split(/\n/).map(l=>l.trim()).filter(Boolean); }
-function blockCounts(b){ return linesOf(b.emailsText).length; }
+
+function defaultAgent(email, name){
+  return {email:email||'', name:name||'', fullSkill:true, bbt:false, halfDay:false, countedInScore:true};
+}
+function defaultBlock(){ return {managerEmail:'', managerShort:'', batch:'', agents:[]}; }
+
+// 相容舊版資料格式（emailsText/namesText 純文字），自動轉成新版 agents 表格陣列
+function migrateBlock(b){
+  if(b.agents) return b;
+  const emails = linesOf(b.emailsText);
+  const names = linesOf(b.namesText);
+  const agents = emails.map((e,i)=> defaultAgent(e, names[i]||''));
+  return {managerEmail:b.managerEmail||'', managerShort:b.managerShort||'', batch:b.batch||'', agents};
+}
+
+function agentRowHTML(a){
+  return `<tr>
+    <td class="ag-text-col"><input type="text" class="ag-email" value="${a.email||''}" placeholder="email"></td>
+    <td class="ag-text-col"><input type="text" class="ag-name" value="${a.name||''}" placeholder="姓名"></td>
+    <td><input type="checkbox" class="ag-full" ${a.fullSkill?'checked':''}></td>
+    <td><input type="checkbox" class="ag-bbt" ${a.bbt?'checked':''}></td>
+    <td><input type="checkbox" class="ag-half" ${a.halfDay?'checked':''}></td>
+    <td><input type="checkbox" class="ag-counted" ${a.countedInScore!==false?'checked':''}></td>
+    <td><button class="btn-row-del" type="button" title="刪除此列">✕</button></td>
+  </tr>`;
+}
+
 function blockHTML(b){
+  const agentRows = (b.agents||[]).map(agentRowHTML).join('');
   return `<div class="mgr-block">
     <div class="mgr-block-header">
       <input type="text" class="mgr-email" placeholder="主管信箱" value="${b.managerEmail||''}">
@@ -252,50 +279,99 @@ function blockHTML(b){
       <button class="secondary btn-copy" type="button">複製此區塊</button>
       <button class="secondary btn-del" type="button">刪除</button>
     </div>
-    <div class="mgr-split">
-      <div class="mgr-col">
-        <label class="mgr-col-label">Email（每行一位）</label>
-        <textarea class="mgr-emails" placeholder="dawn.kuo@shopee.com&#10;daisy.chang@shopee.com">${b.emailsText||''}</textarea>
+
+    <div class="mgr-quick-add">
+      <label class="mgr-col-label">快速新增（貼上後按「加入表格」，會依行號自動配對成一列一列）</label>
+      <div class="mgr-split">
+        <div class="mgr-col">
+          <textarea class="mgr-quick-emails" placeholder="dawn.kuo@shopee.com&#10;daisy.chang@shopee.com"></textarea>
+        </div>
+        <div class="mgr-col">
+          <textarea class="mgr-quick-names" placeholder="Dawn Kuo&#10;Daisy Chang"></textarea>
+        </div>
       </div>
-      <div class="mgr-col">
-        <label class="mgr-col-label">英文姓名（順序需對應左邊，每行一位）</label>
-        <textarea class="mgr-names" placeholder="Dawn Kuo&#10;Daisy Chang">${b.namesText||''}</textarea>
-      </div>
+      <button class="secondary btn-quick-add" type="button" style="margin-top:6px;">加入表格 ↓</button>
     </div>
-    <div class="mgr-mismatch-warn" style="display:none;"></div>
-    <div class="mgr-block-count">0 位專員</div>
+
+    <table class="agent-table">
+      <thead><tr>
+        <th style="width:26%;">Email</th><th style="width:16%;">姓名</th>
+        <th>全技能</th><th>BBT</th><th>半天</th><th>計入成績</th><th></th>
+      </tr></thead>
+      <tbody class="agent-tbody">${agentRows}</tbody>
+    </table>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="secondary btn-add-row" type="button">+ 新增一列</button>
+      <div class="mgr-block-count">0 位專員</div>
+    </div>
   </div>`;
 }
-function defaultBlock(){ return {managerEmail:'', managerShort:'', batch:'', emailsText:'', namesText:''}; }
 
+function readAgentRow(tr){
+  return {
+    email: tr.querySelector('.ag-email').value.trim().toLowerCase(),
+    name: tr.querySelector('.ag-name').value.trim(),
+    fullSkill: tr.querySelector('.ag-full').checked,
+    bbt: tr.querySelector('.ag-bbt').checked,
+    halfDay: tr.querySelector('.ag-half').checked,
+    countedInScore: tr.querySelector('.ag-counted').checked
+  };
+}
 function getBlocksFromDOM(){
   return Array.from(document.querySelectorAll('#roster-blocks .mgr-block')).map(el=>({
     managerEmail: el.querySelector('.mgr-email').value.trim(),
     managerShort: el.querySelector('.mgr-short').value.trim(),
     batch: el.querySelector('.mgr-batch').value.trim(),
-    emailsText: el.querySelector('.mgr-emails').value,
-    namesText: el.querySelector('.mgr-names').value
+    agents: Array.from(el.querySelectorAll('.agent-tbody tr')).map(readAgentRow).filter(a=>a.email)
   }));
 }
+function blockCounts(b){ return (b.agents||[]).length; }
+
 function renderBlocks(blocks){
   const container = document.getElementById('roster-blocks');
-  container.innerHTML = blocks.map(blockHTML).join('');
+  container.innerHTML = blocks.map(migrateBlock).map(blockHTML).join('');
   container.querySelectorAll('.mgr-block').forEach(el=> bindBlockEvents(el));
   updateSummary();
 }
+
+function addAgentRowToBlock(el, agentData){
+  const tbody = el.querySelector('.agent-tbody');
+  const wrap = document.createElement('tbody');
+  wrap.innerHTML = agentRowHTML(agentData);
+  const row = wrap.firstElementChild;
+  tbody.appendChild(row);
+  bindRowEvents(el, row);
+}
+function bindRowEvents(el, row){
+  row.querySelector('.btn-row-del').onclick = ()=>{ row.remove(); updateBlockCount(el); updateSummary(); };
+  row.querySelectorAll('input').forEach(inp=> inp.addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); }));
+  row.querySelectorAll('input[type=checkbox]').forEach(inp=> inp.addEventListener('change', updateSummary));
+}
 function bindBlockEvents(el){
   updateBlockCount(el);
-  el.querySelector('.mgr-emails').addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); });
-  el.querySelector('.mgr-names').addEventListener('input', ()=>{ updateBlockCount(el); updateSummary(); });
+  el.querySelectorAll('.agent-tbody tr').forEach(row=> bindRowEvents(el, row));
   el.querySelector('.mgr-email').addEventListener('input', updateSummary);
   el.querySelector('.mgr-short').addEventListener('input', updateSummary);
+
+  el.querySelector('.btn-add-row').onclick = ()=>{
+    addAgentRowToBlock(el, defaultAgent('',''));
+    updateBlockCount(el);
+  };
+  el.querySelector('.btn-quick-add').onclick = ()=>{
+    const emails = linesOf(el.querySelector('.mgr-quick-emails').value);
+    const names = linesOf(el.querySelector('.mgr-quick-names').value);
+    emails.forEach((e,i)=> addAgentRowToBlock(el, defaultAgent(e, names[i]||'')));
+    el.querySelector('.mgr-quick-emails').value = '';
+    el.querySelector('.mgr-quick-names').value = '';
+    updateBlockCount(el);
+    updateSummary();
+  };
   el.querySelector('.btn-copy').onclick = ()=>{
     const data = {
       managerEmail: el.querySelector('.mgr-email').value.trim(),
       managerShort: el.querySelector('.mgr-short').value.trim(),
       batch: el.querySelector('.mgr-batch').value.trim(),
-      emailsText: el.querySelector('.mgr-emails').value,
-      namesText: el.querySelector('.mgr-names').value
+      agents: Array.from(el.querySelectorAll('.agent-tbody tr')).map(readAgentRow)
     };
     const newEl = document.createElement('div');
     newEl.innerHTML = blockHTML(data);
@@ -312,16 +388,8 @@ function bindBlockEvents(el){
   };
 }
 function updateBlockCount(el){
-  const emails = linesOf(el.querySelector('.mgr-emails').value);
-  const names = linesOf(el.querySelector('.mgr-names').value);
-  el.querySelector('.mgr-block-count').textContent = emails.length + ' 位專員';
-  const warnEl = el.querySelector('.mgr-mismatch-warn');
-  if(emails.length && names.length && emails.length !== names.length){
-    warnEl.style.display = 'block';
-    warnEl.textContent = `⚠️ Email ${emails.length} 行、姓名 ${names.length} 行，行數不一致，可能會對錯人，請檢查`;
-  } else {
-    warnEl.style.display = 'none';
-  }
+  const n = el.querySelectorAll('.agent-tbody tr').length;
+  el.querySelector('.mgr-block-count').textContent = n + ' 位專員';
 }
 function updateSummary(){
   const blocks = getBlocksFromDOM();
@@ -335,10 +403,13 @@ function buildRosterAndManagers(blocks){
   blocks.forEach(b=>{
     const mgrEmail = (b.managerEmail||'').toLowerCase();
     if(mgrEmail) managers[mgrEmail] = b.managerShort || mgrEmail;
-    const emails = linesOf(b.emailsText);
-    const names = linesOf(b.namesText);
-    emails.forEach((e,i)=>{
-      roster.push({email:e.toLowerCase(), name:names[i]||'', manager:mgrEmail, batch:b.batch||''});
+    (b.agents||[]).forEach(a=>{
+      if(!a.email) return;
+      roster.push({
+        email:a.email.toLowerCase(), name:a.name||'', manager:mgrEmail, batch:b.batch||'',
+        fullSkill: a.fullSkill!==false, bbt: !!a.bbt, halfDay: !!a.halfDay,
+        countedInScore: a.countedInScore!==false
+      });
     });
   });
   return {roster, managers};
@@ -366,6 +437,7 @@ async function loadSavedBlocks(){
   let blocks = null;
   try{ blocks = saved ? JSON.parse(saved) : null; }catch(e){}
   if(!blocks || !blocks.length) blocks = [defaultBlock()];
+  blocks = blocks.map(migrateBlock);
   renderBlocks(blocks);
   const {roster, managers} = buildRosterAndManagers(blocks);
   state.roster = roster;
@@ -413,7 +485,13 @@ function pct(n,d){ if(!d) return '-'; return (n/d*100).toFixed(1)+'%'; }
 function isYes(v){ return String(v).trim().toLowerCase()==='yes' || String(v).trim()==='是'; }
 
 /* ============ 主計算 ============ */
-function computeReport(){
+// ============================================================
+// buildRawAgentStats()：核心原始數據層。
+// 讀四份明細檔 + 名單設定，算出每位專員的「原始數字」（不做格式化，
+// 例如 icCount 是數字 0 而不是字串 '-'）。computeReport()（日終報表）
+// 跟之後的即時產能報表都共用這份，只是各自再做不同的格式化/分組。
+// ============================================================
+function buildRawAgentStats(){
   const warnings = [];
   if(!state.roster.length){ warnings.push('尚未設定專員名單，將以資料中出現過的 Email 作為基準列出。'); }
   ['ic','chat','status','hourly'].forEach(k=>{
@@ -453,7 +531,9 @@ function computeReport(){
     const ri = rosterInfo[e] || {};
     const mgrShort = state.managers[ri.manager] || ri.manager || '(未設定)';
     return {
-      email:e, name:ri.name||'', batch:ri.batch||'', manager:mgrShort,
+      email:e, name:ri.name||'', batch:ri.batch||'', manager:mgrShort, managerEmail: ri.manager||'',
+      fullSkill: ri.fullSkill!==false, bbt: !!ri.bbt, halfDay: !!ri.halfDay,
+      countedInScore: ri.countedInScore!==false,
       icCount:0, icAnswered:0, acdSum:0, acdCount:0, icGood:0, icBad:0, icAvg:0,
       chatCount:0, chatGood:0, chatBad:0, chatAvg:0,
       status:{}
@@ -544,6 +624,17 @@ function computeReport(){
     a.status[code].count++;
   });
 
+  // 補上外撥通數（來自 Hourly Activity），跟 status 累計放在同一個 agent 物件方便取用
+  emails.forEach(e=>{
+    agents[e].busyOutCount = outboundCountByEmail[e] || 0;
+  });
+
+  return {agents, emails, warnings};
+}
+
+function computeReport(){
+  const {agents, emails, warnings} = buildRawAgentStats();
+
   const rows = emails.map(e=>{
     const a = agents[e];
     const st = a.status;
@@ -561,7 +652,7 @@ function computeReport(){
     const awayBreak=g('away_break'), awayMeal=g('away_meal'), awayBreakMeal=awayBreak+awayMeal,
           awayConsult=g('away_consult'), awayPersonal=g('away_personal');
     const offlineSec = g('offline'), offlineCount = cnt('offline');
-    const busyOutCount = outboundCountByEmail[e] || 0; // 改由 Hourly Activity 明細加總 Call Outbound(in number)
+    const busyOutCount = a.busyOutCount || 0;
 
     const totalA = onIC+onChat+onICChat+onCall+onCase+busyWrap+busyOut;
     const totalB = onIC+onChat+onICChat+onCall+onCase
