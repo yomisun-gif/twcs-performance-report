@@ -68,7 +68,7 @@ const GUESS = {
 };
 
 /* ============ Tabs ============ */
-const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能', dashboard:'產能儀表板'};
+const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能', dashboard:'產能儀表板', about:'關於'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
@@ -78,6 +78,24 @@ function switchTab(name){
   if(titleEl) titleEl.textContent = TAB_TITLE[name] || '';
 }
 document.querySelectorAll('.tab').forEach(t=>{ t.onclick = ()=> switchTab(t.dataset.tab); });
+
+/* ============ 深色模式 ============ */
+function updateThemeButton(){
+  const btn = document.getElementById('btn-theme-toggle');
+  if(btn) btn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+}
+async function loadTheme(){
+  const saved = await storageGet('ui_theme');
+  if(saved === 'dark') document.documentElement.classList.add('dark');
+  else if(saved === 'light') document.documentElement.classList.remove('dark');
+  updateThemeButton();
+}
+document.getElementById('btn-theme-toggle').onclick = async ()=>{
+  document.documentElement.classList.toggle('dark');
+  await storageSet('ui_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  updateThemeButton();
+};
+loadTheme();
 document.getElementById('btn-goto-mapping').onclick = ()=> switchTab('mapping');
 document.getElementById('btn-goto-roster').onclick = ()=> switchTab('roster');
 
@@ -284,10 +302,10 @@ function blockHTML(b){
       <label class="mgr-col-label">快速新增（貼上後按「加入表格」，會依行號自動配對成一列一列）</label>
       <div class="mgr-split">
         <div class="mgr-col">
-          <textarea class="mgr-quick-emails" placeholder="dawn.kuo@shopee.com&#10;daisy.chang@shopee.com"></textarea>
+          <textarea class="mgr-quick-emails" placeholder="agent01@shopee.com&#10;agent02@shopee.com"></textarea>
         </div>
         <div class="mgr-col">
-          <textarea class="mgr-quick-names" placeholder="Dawn Kuo&#10;Daisy Chang"></textarea>
+          <textarea class="mgr-quick-names" placeholder="王小明&#10;李小華"></textarea>
         </div>
       </div>
       <button class="secondary btn-quick-add" type="button" style="margin-top:6px;">加入表格 ↓</button>
