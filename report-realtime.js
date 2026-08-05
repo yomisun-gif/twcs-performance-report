@@ -161,16 +161,17 @@ function renderManagerTable(mgr, orgSummary, index){
   </table>`;
 }
 
-function renderSkillSection(title, dateStr, timeStr, list){
-  if(!list.length){
+function renderSkillSection(title, dateStr, timeStr, data){
+  if(!data.managers.length){
     return `<div class="rt-skill-title"><span class="dot"></span>${title}</div><p class="rt-empty-note">目前沒有符合條件的專員資料（計入成績已勾選，且當時段已有 Call 或 Chat 產能）。</p>`;
   }
-  const {orgSummary, managers} = summarizeSkillGroup(list);
-  const mgrTables = managers.map((mgr,i)=> renderManagerTable(mgr, orgSummary, i)).join('');
+  const mgrTables = data.managers.map((mgr,i)=> renderManagerTable(mgr, data.orgSummary, i)).join('');
   return `<div class="rt-skill-title"><span class="dot"></span>${title}</div>
-    ${renderOrgBar(dateStr, timeStr, orgSummary)}
+    ${renderOrgBar(dateStr, timeStr, data.orgSummary)}
     <div class="rt-managers-row">${mgrTables}</div>`;
 }
+
+let lastRealtimeData = null;
 
 document.getElementById('btn-generate-realtime').onclick = ()=>{
   const statusEl = document.getElementById('realtime-status');
@@ -195,8 +196,12 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
     const fullSkillList = all.filter(a=>a.fullSkill);
     const nonFullSkillList = all.filter(a=>!a.fullSkill);
 
-    const html = renderSkillSection('全技能', dateStr, timeStr, fullSkillList)
-      + renderSkillSection('非全技能', dateStr, timeStr, nonFullSkillList);
+    const fullData = summarizeSkillGroup(fullSkillList);
+    const nonFullData = summarizeSkillGroup(nonFullSkillList);
+    lastRealtimeData = {dateStr, timeStr, full:fullData, nonFull:nonFullData};
+
+    const html = renderSkillSection('全技能', dateStr, timeStr, fullData)
+      + renderSkillSection('非全技能', dateStr, timeStr, nonFullData);
 
     document.getElementById('realtime-output').innerHTML = html;
 
@@ -211,4 +216,71 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
     statusEl.textContent = '產出失敗：' + err.message;
     wbox.innerHTML = `<div class="warn-box"><strong>發生錯誤：</strong>${err.message}（詳細內容請按F12看Console）</div>`;
   }
+};
+
+/* ============ 匯出 ============ */
+function buildRealtimeExportRows(){
+  const rows = [];
+  function addSection(title, data){
+    rows.push([title]);
+    const s = data.orgSummary;
+    rows.push([
+      'Day', lastRealtimeData.dateStr,
+      'Call產能(均)', numOrDash(s.callAvg), 'Chat產能(均)', numOrDash(s.chatAvg), 'Total產能(均)', numOrDash(s.totalAvg),
+      'Call滿意度(均)', pctRT(s.callCsatAvg), 'Chat滿意度(均)', pctRT(s.chatCsatAvg),
+      '文書(均)', secToHMSRT(s.onCaseAvg), '報表時間', lastRealtimeData.timeStr
+    ]);
+    rows.push([]);
+    if(!data.managers.length){
+      rows.push(['（無符合條件的專員資料）']);
+      rows.push([]);
+      return;
+    }
+    data.managers.forEach(mgr=>{
+      rows.push([mgr.managerShort]);
+      rows.push(['姓名','Call產能','Call滿意度','Chat產能','Chat滿意度','Total產能','文書']);
+      const g = mgr.groupAvg;
+      rows.push(['組平均', numOrDash(g.callAvg), pctRT(g.callCsatAvg), numOrDash(g.chatAvg), pctRT(g.chatCsatAvg), numOrDash(g.totalAvg), secToHMSRT(g.onCaseAvg)]);
+      mgr.agents.forEach(a=>{
+        const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
+        const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
+        rows.push([
+          a.name + (a.halfDay ? '(半)' : ''),
+          a.icCount, callFrac!==null ? pctRT(callFrac) : '-',
+          a.chatCount, chatFrac!==null ? pctRT(chatFrac) : '-',
+          a.icCount + a.chatCount, secToHMSRT(a.onCaseSec)
+        ]);
+      });
+      rows.push([]);
+    });
+  }
+  addSection('全技能', lastRealtimeData.full);
+  addSection('非全技能', lastRealtimeData.nonFull);
+  return rows;
+}
+
+document.getElementById('btn-export-realtime-xlsx').onclick = ()=>{
+  if(!lastRealtimeData){ alert('請先按「產出即時產能」，才會有資料可以匯出。'); return; }
+  const rows = buildRealtimeExportRows();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '即時產能');
+  const fname = `即時產能_${lastRealtimeData.dateStr.replace('/','-')}_${lastRealtimeData.timeStr.replace(':','')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+};
+
+document.getElementById('btn-export-realtime-html').onclick = ()=>{
+  if(!lastRealtimeData){ alert('請先按「產出即時產能」，才會有資料可以匯出。'); return; }
+  const blob = new Blob(
+    ['<!DOCTYPE html><meta charset="utf-8"><title>即時產能</title>' + document.getElementById('realtime-output').innerHTML],
+    {type:'text/html'}
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `即時產能_${lastRealtimeData.dateStr.replace('/','-')}_${lastRealtimeData.timeStr.replace(':','')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
 };
