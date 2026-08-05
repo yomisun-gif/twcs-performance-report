@@ -142,3 +142,80 @@ document.getElementById('btn-export-html').onclick = ()=>{
   document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 1000);
 };
+
+/* ============ Status Log 篩選檢視 ============ */
+function formatRawCell(v){
+  if(v instanceof Date){
+    const p2 = n=>String(n).padStart(2,'0');
+    return `${v.getFullYear()}-${p2(v.getMonth()+1)}-${p2(v.getDate())} ${p2(v.getHours())}:${p2(v.getMinutes())}:${p2(v.getSeconds())}`;
+  }
+  return (v===null || v===undefined || v==='') ? '-' : v;
+}
+
+function populateSubStatusOptions(){
+  const sel = document.getElementById('statuslog-filter-substatus');
+  const stMap = state.status.map;
+  if(!stMap.sub_status || !state.status.rows.length) return;
+  const current = sel.value;
+  const values = Array.from(new Set(
+    state.status.rows.map(r=> String(r[stMap.sub_status]||'').trim()).filter(Boolean)
+  )).sort();
+  sel.innerHTML = '<option value="">全部 Sub Status</option>' +
+    values.map(v=>`<option value="${v}">${v}</option>`).join('');
+  if(values.includes(current)) sel.value = current;
+}
+
+document.getElementById('btn-filter-statuslog').onclick = ()=>{
+  const countEl = document.getElementById('statuslog-filter-count');
+  const tbl = document.getElementById('statuslog-filter-table');
+  const stMap = state.status.map;
+
+  if(!state.status.rows.length){
+    tbl.innerHTML = '';
+    countEl.textContent = '尚未上傳 Status Log 明細';
+    return;
+  }
+  if(!stMap.email || !stMap.sub_status || !stMap.start_datetime || !stMap.end_datetime){
+    tbl.innerHTML = '';
+    countEl.textContent = '請先到②欄位對應完成 Status Log 的欄位設定';
+    return;
+  }
+
+  populateSubStatusOptions();
+
+  const emailFilter = document.getElementById('statuslog-filter-email').value.trim().toLowerCase();
+  const subFilter = document.getElementById('statuslog-filter-substatus').value;
+
+  const filtered = state.status.rows.filter(r=>{
+    const email = String(r[stMap.email]||'').toLowerCase().trim();
+    const sub = String(r[stMap.sub_status]||'').trim();
+    if(emailFilter && email !== emailFilter) return false;
+    if(subFilter && sub !== subFilter) return false;
+    return true;
+  });
+
+  const bodyRows = filtered.map(r=>{
+    const cls = classifyStatusRow(r, stMap);
+    const startCellClass = cls.included ? 'cell-included' : 'cell-alert';
+    const reasonText = cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`;
+    return `<tr>
+      <td>${r[stMap.email]||'-'}</td>
+      <td>${r[stMap.sub_status]||'-'}</td>
+      <td class="${startCellClass}">${formatRawCell(r[stMap.start_datetime])}</td>
+      <td class="${startCellClass}">${formatRawCell(r[stMap.end_datetime])}</td>
+      <td class="sl-reason">${reasonText}</td>
+    </tr>`;
+  }).join('');
+
+  tbl.innerHTML = `<thead><tr>
+      <th>Email</th><th>Sub Status</th><th>Status Start Time</th><th>Status End Time</th><th>計算狀態</th>
+    </tr></thead>
+    <tbody>${bodyRows || '<tr><td colspan="5" class="rt-empty-note">沒有符合篩選條件的資料</td></tr>'}</tbody>`;
+
+  countEl.textContent = `共 ${filtered.length} 筆（已計入 ${filtered.filter(r=>classifyStatusRow(r,stMap).included).length} 筆）`;
+};
+
+// Status Log 上傳完成後，順便先把 Sub Status 選單填好，不用等按篩選才看得到選項
+document.getElementById('file-status').addEventListener('change', ()=> setTimeout(populateSubStatusOptions, 300));
+document.getElementById('dropzone-input').addEventListener('change', ()=> setTimeout(populateSubStatusOptions, 300));
+document.getElementById('dropzone').addEventListener('drop', ()=> setTimeout(populateSubStatusOptions, 300));
