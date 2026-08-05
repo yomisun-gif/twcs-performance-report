@@ -65,6 +65,7 @@
   html.dark table.rank-table tbody tr:nth-child(2){background:#2A2C31;}
   html.dark table.rank-table tbody tr:nth-child(3){background:#3A2418;}
   html.dark .cell-alert{background:#4A1F1F !important;color:#FF9B9B !important;}
+  html.dark .cell-included{background:#1B3B24 !important;color:#8FD69B !important;}
   html.dark button.secondary{background:var(--surface);color:var(--text);}
   *{box-sizing:border-box;}
   body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;background:var(--bg);color:var(--text);}
@@ -187,6 +188,8 @@
   tr.rt-avg-row td{background:var(--primary-tint);font-weight:700;color:var(--primary-dark);}
   .rt-empty-note{color:var(--text-secondary);font-size:12px;padding:10px;}
   .cell-alert{background:#FCE4E4 !important;color:#B91C1C !important;font-weight:700;}
+  .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
+  .sl-reason{font-size:11px;color:var(--text-secondary);}
   .rank-columns{display:flex;gap:16px;flex-wrap:wrap;}
   table.rank-table{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex:1;min-width:220px;font-variant-numeric:tabular-nums;}
   table.rank-table th,table.rank-table td{border:1px solid var(--border);padding:7px 12px;text-align:center;}
@@ -349,6 +352,20 @@
     <div id="warnings"></div>
   </div>
   <div class="report-wrap"><table class="report" id="report-table"></table></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>Status Log 篩選檢視</h2>
+    <p class="hint">用來核對 Status Log 原始資料。輸入專員 Email 或選 Sub Status（可各自單獨用，也可以一起篩），只列出 Sub Status / Status Start Time / Status End Time 三欄，並標示這筆資料這次計算「有沒有被納入」——綠色代表有計入，紅色代表被排除（跨日或 End Time=0），滑鼠移過去可以看排除原因。</p>
+    <div class="toolbar">
+      <input type="text" id="statuslog-filter-email" placeholder="輸入專員 Email（留空=全部人）" style="width:260px;">
+      <select id="statuslog-filter-substatus"><option value="">全部 Sub Status</option></select>
+      <button class="primary" id="btn-filter-statuslog">篩選</button>
+      <span class="badge" id="statuslog-filter-count"></span>
+    </div>
+    <div class="report-wrap" style="max-height:55vh;">
+      <table class="report" id="statuslog-filter-table"></table>
+    </div>
+  </div>
 </div>
 
 <!-- ⑤ 即時產能 -->
