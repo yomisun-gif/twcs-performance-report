@@ -603,6 +603,50 @@ function isYes(v){ return String(v).trim().toLowerCase()==='yes' || String(v).tr
 // 例如 icCount 是數字 0 而不是字串 '-'）。computeReport()（日終報表）
 // 跟之後的即時產能報表都共用這份，只是各自再做不同的格式化/分組。
 // ============================================================
+// ---- Status Log 子狀態對照表（全域，計算引擎與篩選檢視共用）----
+const SUBMAP = {
+  'online for internet call':'on_ic',
+  'online for chat':'on_chat',
+  'online for call':'on_call',
+  'online for case':'on_case',
+  'busy with wrapup':'busy_wrapup',
+  'busy with training':'busy_training',
+  'busy with meeting':'busy_meeting',
+  'busy with coaching':'busy_coaching',
+  'busy with escalation':'busy_escalation',
+  'busy with outbound':'busy_outbound',
+  'away for short break':'away_break',
+  'away for meal':'away_meal',
+  'away for consult':'away_consult',
+  'away for personal break':'away_personal',
+  'offline':'offline'
+};
+
+// 判斷一筆 Status Log 原始資料，這次計算「有沒有」被納入，以及原因。
+// computeReport()/buildRawAgentStats() 跟 Status Log 篩選檢視都呼叫這支，
+// 確保兩邊的排除規則永遠是同一套，不會各寫一套邏輯導致對不上。
+function classifyStatusRow(row, stMap){
+  const sub = String(row[stMap.sub_status]||'').toLowerCase().trim();
+  let code = SUBMAP[sub];
+  if(!code){
+    const parts = sub.split(',').map(s=>s.trim()).filter(Boolean);
+    if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')){
+      code = 'on_ic_chat_dual';
+    }
+  }
+  if(!code) return {included:false, code:null, reason:'狀態值無法辨識'};
+
+  const startV = row[stMap.start_datetime], endV = row[stMap.end_datetime];
+  const endDate = toDate(endV);
+  if(!endDate || endDate.getFullYear() <= 1899) return {included:false, code, reason:'Status End Time = 0（無效值）'};
+
+  const sd = dateOnly(startV), ed = dateOnly(endV);
+  if(sd && ed && sd !== ed) return {included:false, code, reason:'跨日資料'};
+
+  return {included:true, code, reason:''};
+}
+
+
 function buildRawAgentStats(){
   const warnings = [];
   if(!state.roster.length){ warnings.push('尚未設定專員名單，將以資料中出現過的 Email 作為基準列出。'); }
@@ -686,50 +730,14 @@ function buildRawAgentStats(){
     else if(csat === 'average' || csat === 'avg') a.chatAvg++;
   });
 
-  // ---- Status Log ----
-  const SUBMAP = {
-    'online for internet call':'on_ic',
-    'online for chat':'on_chat',
-    'online for call':'on_call',
-    'online for case':'on_case',
-    'busy with wrapup':'busy_wrapup',
-    'busy with training':'busy_training',
-    'busy with meeting':'busy_meeting',
-    'busy with coaching':'busy_coaching',
-    'busy with escalation':'busy_escalation',
-    'busy with outbound':'busy_outbound',
-    'away for short break':'away_break',
-    'away for meal':'away_meal',
-    'away for consult':'away_consult',
-    'away for personal break':'away_personal',
-    'offline':'offline'
-  };
   state.status.rows.forEach(r=>{
     const e = String(r[stMap.email]||'').toLowerCase().trim();
     if(!e) return;
     const a = ensure(e);
-    const sub = String(r[stMap.sub_status]||'').toLowerCase().trim();
-    let code = SUBMAP[sub];
-    if(!code){
-      // 部分資料的 Sub Status 會是複合值，例如
-      // "online for chat,online for internet call"，代表同時雙開兩渠道，
-      // 這是獨立的第三種狀態，不等於「IC + Chat」相加，需獨立歸類
-      const parts = sub.split(',').map(s=>s.trim()).filter(Boolean);
-      if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')){
-        code = 'on_ic_chat_dual';
-      }
-    }
-    if(!code) return;
+    const cls = classifyStatusRow(r, stMap);
+    if(!cls.included) return;
+    const code = cls.code;
     const startV = r[stMap.start_datetime], endV = r[stMap.end_datetime];
-
-    // 規則1：Status End Time = 0（尚未結束/無效值）的資料不計算
-    const endDate = toDate(endV);
-    if(!endDate || endDate.getFullYear() <= 1899) return;
-
-    // 規則2：跨日資料（Status Start Time 與 Status End Time 不同一天，如下班到隔天）一律不計算
-    const sd = dateOnly(startV), ed = dateOnly(endV);
-    if(sd && ed && sd !== ed) return;
-
     const dur = secBetween(startV, endV);
     if(!a.status[code]) a.status[code] = {sec:0, count:0};
     if(dur !== null) a.status[code].sec += dur;
