@@ -147,8 +147,8 @@ function renderManagerTable(mgr, orgSummary, index){
     const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
     const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
     const total = a.icCount+a.chatCount;
-    return `<tr style="background:${color.bg}2E;">
-      <td>${a.name}${a.halfDay?' (半)':''}</td>
+    return `<tr>
+      <td style="background:${color.bg}66;">${a.name}${a.halfDay?' (半)':''}</td>
       <td>${a.icCount}</td>
       <td${csatCellClass(callFrac)}>${callFrac!==null?pctRT(callFrac):'-'}</td>
       <td>${a.chatCount}</td>
