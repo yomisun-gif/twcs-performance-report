@@ -35,7 +35,8 @@ const REQ = {
     ['call_end_time','Call End Time（通話結束時間）'],
     ['last_routed_time','Last Routed to Agent Time（最後轉派至專員時間）'],
     ['is_answered','Is Answered（是否接聽，值需含 Yes/No）'],
-    ['csat','CSAT（值為 Good/Bad/Average/- 等評價文字）']
+    ['csat','CSAT（值為 Good/Bad/Average/- 等評價文字）'],
+    ['call_status','Call Status（通話狀態，值為 Missed 的整筆不計入通數/產能）']
   ],
   chat: [
     ['chat_owner','Chat Owner（負責專員 Email，計算產能用）'],
@@ -64,7 +65,8 @@ const GUESS = {
   sub_status:['sub status','substatus'],
   start_datetime:['status start time','start time'],
   end_datetime:['status end time','end time'],
-  call_outbound:['call outbound','outbound']
+  call_outbound:['call outbound','outbound'],
+  call_status:['call status']
 };
 
 /* ============ Tabs ============ */
@@ -700,9 +702,12 @@ function buildRawAgentStats(){
   function ensure(e){ if(!agents[e]) agents[e] = baseAgent(e); return agents[e]; }
 
   // ---- IC ----
+  // Call Status = Missed 的整筆不計入通數/產能（不算已接聽，也不影響ACD/CSAT）
   state.ic.rows.forEach(r=>{
     const e = String(r[icMap.last_agent_email]||'').toLowerCase().trim();
     if(!e) return;
+    const callStatus = String(r[icMap.call_status]||'').trim().toLowerCase();
+    if(callStatus === 'missed') return;
     const a = ensure(e);
     a.icCount++;
     if(isYes(r[icMap.is_answered])){
