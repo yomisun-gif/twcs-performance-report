@@ -15,7 +15,6 @@ function pctRT(fraction){
   if(fraction===null || fraction===undefined || isNaN(fraction)) return '-';
   return (fraction*100).toFixed(1)+'%';
 }
-function avgOrNull(sum, n){ return n>0 ? sum/n : null; }
 function numOrDash(n){ return (n===null || n===undefined) ? '-' : n.toFixed(1); }
 
 // ---- 條件式格式門檻 ----
@@ -55,7 +54,7 @@ function extractRealtimeAgent(email, a){
   const onCaseSec = (a.status && a.status.on_case) ? a.status.on_case.sec : 0;
   return {
     email, name: a.name || email, managerShort: a.manager, managerEmail: a.managerEmail,
-    fullSkill: a.fullSkill, halfDay: a.halfDay, countedInScore: a.countedInScore,
+    fullSkill: a.fullSkill, bbt: a.bbt, halfDay: a.halfDay, countedInScore: a.countedInScore,
     icCount: a.icCount||0, chatCount: a.chatCount||0,
     icGood: a.icGood||0, icBad: a.icBad||0,
     chatGood: a.chatGood||0, chatBad: a.chatBad||0,
@@ -64,9 +63,13 @@ function extractRealtimeAgent(email, a){
 }
 
 // 依技能分類彙總：回傳 { orgSummary, managers: [{managerShort, groupAvg, agents}] }
+// 每個指標(Call均/Chat均/Total均/文書均)各自有獨立的分母，不是共用同一個人數：
+//   Call均  分母 = Call>0 的人
+//   Chat均  分母 = Chat>0 的人
+//   Total均 分母 = (Call+Chat)>0 的人（=當日有上班）
+//   文書均  分母 = (Call+Chat)>0 的人（有上班就算，不要求文書>0；文書=0且沒上班=休假，不算）
+// 半天的人一律完全排除於所有平均計算之外（不是打折），但仍會顯示在名單列表裡當參考。
 function summarizeSkillGroup(list){
-  // list 是「計入成績」的全部人（含當天0產能的人，用來顯示列表）
-  // 但組平均/全隊平均只能算「有成績」的人，不然沒上班的0會拉低平均
   const byManager = {};
   const managerOrder = [];
   list.forEach(a=>{
@@ -75,27 +78,29 @@ function summarizeSkillGroup(list){
     byManager[key].push(a);
   });
 
-  function computeGroupStats(group){
-    // 有成績 = Call 或 Chat 任一有數字就算，不管半天與否
-    const scored = group.filter(a => (a.icCount + a.chatCount) > 0);
-    const n = scored.length;
-    const halfN = scored.filter(a=>a.halfDay).length;
-    const effN = n - halfN*0.5;
-    const callSum = scored.reduce((s,a)=>s+a.icCount,0);
-    const chatSum = scored.reduce((s,a)=>s+a.chatCount,0);
-    const totalSum = callSum+chatSum;
-    const onCaseSum = scored.reduce((s,a)=>s+a.onCaseSec,0);
+  function avgBy(list, valueFn){
+    if(!list.length) return null;
+    return list.reduce((s,a)=> s+valueFn(a), 0) / list.length;
+  }
 
-    const callPctList = scored.filter(a=>(a.icGood+a.icBad)>0).map(a=>a.icGood/(a.icGood+a.icBad));
-    const chatPctList = scored.filter(a=>(a.chatGood+a.chatBad)>0).map(a=>a.chatGood/(a.chatGood+a.chatBad));
-    const callCsatAvg = callPctList.length ? callPctList.reduce((s,v)=>s+v,0)/callPctList.length : null;
-    const chatCsatAvg = chatPctList.length ? chatPctList.reduce((s,v)=>s+v,0)/chatPctList.length : null;
+  function computeGroupStats(group){
+    const eligible = group.filter(a => !a.halfDay); // 半天完全不參與任何平均計算
+
+    const callList = eligible.filter(a => a.icCount > 0);
+    const chatList = eligible.filter(a => a.chatCount > 0);
+    const totalList = eligible.filter(a => (a.icCount + a.chatCount) > 0);
+    const onCaseList = totalList; // 文書均分母跟Total均一樣：有上班就算
+
+    const callCsatList = callList.filter(a => (a.icGood + a.icBad) > 0);
+    const chatCsatList = chatList.filter(a => (a.chatGood + a.chatBad) > 0);
 
     return {
-      n, halfN, effN,
-      callAvg: avgOrNull(callSum, effN), chatAvg: avgOrNull(chatSum, effN), totalAvg: avgOrNull(totalSum, effN),
-      callCsatAvg, chatCsatAvg,
-      onCaseAvg: n>0 ? onCaseSum/n : null
+      callAvg: avgBy(callList, a=>a.icCount),
+      chatAvg: avgBy(chatList, a=>a.chatCount),
+      totalAvg: avgBy(totalList, a=>a.icCount+a.chatCount),
+      onCaseAvg: avgBy(onCaseList, a=>a.onCaseSec),
+      callCsatAvg: avgBy(callCsatList, a=>a.icGood/(a.icGood+a.icBad)),
+      chatCsatAvg: avgBy(chatCsatList, a=>a.chatGood/(a.chatGood+a.chatBad))
     };
   }
 
@@ -193,15 +198,19 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
     const all = emails.map(e=> extractRealtimeAgent(e, agents[e]))
       .filter(a=> a.countedInScore); // 計入成績有勾就列出來，包含當天0產能的人（顯示0）
 
-    const fullSkillList = all.filter(a=>a.fullSkill);
-    const nonFullSkillList = all.filter(a=>!a.fullSkill);
+    // BBT 優先：勾選 BBT 的人只會出現在 BBT 區塊，不會同時出現在全技能/非全技能
+    const bbtList = all.filter(a=>a.bbt);
+    const fullSkillList = all.filter(a=>!a.bbt && a.fullSkill);
+    const nonFullSkillList = all.filter(a=>!a.bbt && !a.fullSkill);
 
     const fullData = summarizeSkillGroup(fullSkillList);
     const nonFullData = summarizeSkillGroup(nonFullSkillList);
-    lastRealtimeData = {dateStr, timeStr, full:fullData, nonFull:nonFullData};
+    const bbtData = summarizeSkillGroup(bbtList);
+    lastRealtimeData = {dateStr, timeStr, full:fullData, nonFull:nonFullData, bbt:bbtData};
 
     const html = renderSkillSection('全技能', dateStr, timeStr, fullData)
-      + renderSkillSection('非全技能', dateStr, timeStr, nonFullData);
+      + renderSkillSection('非全技能', dateStr, timeStr, nonFullData)
+      + renderSkillSection('BBT', dateStr, timeStr, bbtData);
 
     document.getElementById('realtime-output').innerHTML = html;
 
@@ -210,7 +219,7 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
       warnHtml += `<div class="warn-box"><strong>目前沒有任何專員符合條件</strong>——請確認：①「③專員名單」裡至少有人「計入成績」有勾選，②上傳的明細資料裡有這些人的通數。</div>`;
     }
     wbox.innerHTML = warnHtml;
-    statusEl.textContent = `已產出（${timeStr}）・全技能 ${fullSkillList.length} 人・非全技能 ${nonFullSkillList.length} 人`;
+    statusEl.textContent = `已產出（${timeStr}）・全技能 ${fullSkillList.length} 人・非全技能 ${nonFullSkillList.length} 人・BBT ${bbtList.length} 人`;
   }catch(err){
     console.error('即時產能產出失敗：', err);
     statusEl.textContent = '產出失敗：' + err.message;
@@ -256,6 +265,7 @@ function buildRealtimeExportRows(){
   }
   addSection('全技能', lastRealtimeData.full);
   addSection('非全技能', lastRealtimeData.nonFull);
+  addSection('BBT', lastRealtimeData.bbt);
   return rows;
 }
 
