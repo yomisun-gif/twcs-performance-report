@@ -190,6 +190,8 @@
   .cell-alert{background:#FCE4E4 !important;color:#B91C1C !important;font-weight:700;}
   .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
   .sl-reason{font-size:11px;color:var(--text-secondary);}
+  /* Status Log 篩選檢視：表頭需要不透明背景，捲動時才不會被底下資料穿透 */
+  #statuslog-filter-table thead th{background:var(--bg);}
   .rank-columns{display:flex;gap:16px;flex-wrap:wrap;}
   table.rank-table{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex:1;min-width:220px;font-variant-numeric:tabular-nums;}
   table.rank-table th,table.rank-table td{border:1px solid var(--border);padding:7px 12px;text-align:center;}
@@ -357,7 +359,8 @@
     <h2>Status Log 篩選檢視</h2>
     <p class="hint">用來核對 Status Log 原始資料。輸入專員 Email 或選 Sub Status（可各自單獨用，也可以一起篩），只列出 Sub Status / Status Start Time / Status End Time 三欄，並標示這筆資料這次計算「有沒有被納入」——綠色代表有計入，紅色代表被排除（跨日或 End Time=0），滑鼠移過去可以看排除原因。</p>
     <div class="toolbar">
-      <input type="text" id="statuslog-filter-email" placeholder="輸入專員 Email（留空=全部人）" style="width:260px;">
+      <input type="text" id="statuslog-filter-email" placeholder="輸入專員 Email 或姓名（留空=全部人）" style="width:280px;" list="statuslog-agent-suggestions">
+      <datalist id="statuslog-agent-suggestions"></datalist>
       <select id="statuslog-filter-substatus"><option value="">全部 Sub Status</option></select>
       <button class="primary" id="btn-filter-statuslog">篩選</button>
       <span class="badge" id="statuslog-filter-count"></span>
