@@ -192,6 +192,9 @@
   .sl-reason{font-size:11px;color:var(--text-secondary);}
   /* Status Log 篩選檢視：表頭需要不透明背景，捲動時才不會被底下資料穿透 */
   #statuslog-filter-table thead th{background:var(--bg);}
+  .sl-color-label{font-size:12px;color:var(--text-secondary);}
+  .sl-color-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);}
+  .sl-color-item input[type=color]{width:28px;height:24px;padding:0;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:none;}
   .rank-columns{display:flex;gap:16px;flex-wrap:wrap;}
   table.rank-table{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex:1;min-width:220px;font-variant-numeric:tabular-nums;}
   table.rank-table th,table.rank-table td{border:1px solid var(--border);padding:7px 12px;text-align:center;}
@@ -365,9 +368,18 @@
       <button class="primary" id="btn-filter-statuslog">篩選</button>
       <span class="badge" id="statuslog-filter-count"></span>
     </div>
+    <div class="toolbar" style="margin-top:-4px;">
+      <span class="sl-color-label">Sub Status 底色：</span>
+      <label class="sl-color-item">線上<input type="color" id="sl-color-online"></label>
+      <label class="sl-color-item">忙碌<input type="color" id="sl-color-busy"></label>
+      <label class="sl-color-item">離開<input type="color" id="sl-color-away"></label>
+      <label class="sl-color-item">離線<input type="color" id="sl-color-offline"></label>
+      <button class="secondary" id="btn-reset-sl-colors">還原預設色</button>
+    </div>
     <div class="report-wrap" style="max-height:55vh;">
       <table class="report" id="statuslog-filter-table"></table>
     </div>
+    <p class="hint" style="margin-top:6px;">「持續時間」欄位是該筆 Status Start Time 到 Status End Time 的時長，跟計算邏輯無關，純粹方便您掃描。</p>
   </div>
 </div>
 
