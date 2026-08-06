@@ -174,21 +174,53 @@ function populateAgentSuggestions(){
   ).join('');
 }
 
-// Sub Status 依所屬分類（線上/忙碌/離開/離線）套用跟報表一致的底色，方便掃描辨識
-function subStatusColorClass(sub){
+// Sub Status 依所屬分類（線上/忙碌/離開/離線）套色，顏色可由使用者自訂並記住
+const SL_COLOR_DEFAULTS = {online:'#F7F0E3', busy:'#F4F1F9', away:'#F9F0F5', offline:'#EEEFF1'};
+let slColors = Object.assign({}, SL_COLOR_DEFAULTS);
+
+function subStatusCategory(sub){
   const s = String(sub||'').toLowerCase().trim();
   let code = SUBMAP[s];
   if(!code){
     const parts = s.split(',').map(x=>x.trim()).filter(Boolean);
     if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')) code = 'on_ic_chat_dual';
   }
-  if(!code) return '';
-  if(code.indexOf('on_')===0) return 'blk-online';
-  if(code.indexOf('busy_')===0) return 'blk-busy';
-  if(code.indexOf('away_')===0) return 'blk-away';
-  if(code==='offline') return 'blk-offline';
-  return '';
+  if(!code) return null;
+  if(code.indexOf('on_')===0) return 'online';
+  if(code.indexOf('busy_')===0) return 'busy';
+  if(code.indexOf('away_')===0) return 'away';
+  if(code==='offline') return 'offline';
+  return null;
 }
+
+async function loadSlColors(){
+  const saved = await storageGet('sl_sub_colors');
+  if(saved){
+    try{ slColors = Object.assign({}, SL_COLOR_DEFAULTS, JSON.parse(saved)); }catch(e){}
+  }
+  document.getElementById('sl-color-online').value = slColors.online;
+  document.getElementById('sl-color-busy').value = slColors.busy;
+  document.getElementById('sl-color-away').value = slColors.away;
+  document.getElementById('sl-color-offline').value = slColors.offline;
+}
+loadSlColors();
+
+['online','busy','away','offline'].forEach(key=>{
+  document.getElementById('sl-color-'+key).addEventListener('input', async (e)=>{
+    slColors[key] = e.target.value;
+    await storageSet('sl_sub_colors', JSON.stringify(slColors));
+    if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+  });
+});
+document.getElementById('btn-reset-sl-colors').onclick = async ()=>{
+  slColors = Object.assign({}, SL_COLOR_DEFAULTS);
+  await storageSet('sl_sub_colors', JSON.stringify(slColors));
+  document.getElementById('sl-color-online').value = slColors.online;
+  document.getElementById('sl-color-busy').value = slColors.busy;
+  document.getElementById('sl-color-away').value = slColors.away;
+  document.getElementById('sl-color-offline').value = slColors.offline;
+  if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+};
 
 document.getElementById('btn-filter-statuslog').onclick = ()=>{
   const countEl = document.getElementById('statuslog-filter-count');
@@ -232,21 +264,25 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
   const bodyRows = filtered.map(r=>{
     const cls = classifyStatusRow(r, stMap);
     const startCellClass = cls.included ? 'cell-included' : 'cell-alert';
-    const subClass = subStatusColorClass(r[stMap.sub_status]);
+    const cat = subStatusCategory(r[stMap.sub_status]);
+    const subStyle = cat ? ` style="background:${slColors[cat]};"` : '';
+    const dur = secBetween(r[stMap.start_datetime], r[stMap.end_datetime]);
+    const durText = dur !== null ? secToHMS(dur) : '-';
     const reasonText = cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`;
     return `<tr>
       <td>${r[stMap.email]||'-'}</td>
-      <td class="${subClass}">${r[stMap.sub_status]||'-'}</td>
+      <td${subStyle}>${r[stMap.sub_status]||'-'}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.start_datetime])}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.end_datetime])}</td>
+      <td>${durText}</td>
       <td class="sl-reason">${reasonText}</td>
     </tr>`;
   }).join('');
 
   tbl.innerHTML = `<thead><tr>
-      <th>Email</th><th>Sub Status</th><th>Status Start Time</th><th>Status End Time</th><th>計算狀態</th>
+      <th>Email</th><th>Sub Status</th><th>Status Start Time</th><th>Status End Time</th><th>持續時間</th><th>計算狀態</th>
     </tr></thead>
-    <tbody>${bodyRows || '<tr><td colspan="5" class="rt-empty-note">沒有符合篩選條件的資料</td></tr>'}</tbody>`;
+    <tbody>${bodyRows || '<tr><td colspan="6" class="rt-empty-note">沒有符合篩選條件的資料</td></tr>'}</tbody>`;
 
   countEl.textContent = `共 ${filtered.length} 筆（已計入 ${filtered.filter(r=>classifyStatusRow(r,stMap).included).length} 筆）`;
 };
