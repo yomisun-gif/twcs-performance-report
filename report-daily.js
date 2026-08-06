@@ -165,6 +165,31 @@ function populateSubStatusOptions(){
   if(values.includes(current)) sel.value = current;
 }
 
+// 用③專員名單裡的資料，讓搜尋框可以打姓名（自動建議 + 模糊比對）
+function populateAgentSuggestions(){
+  const dl = document.getElementById('statuslog-agent-suggestions');
+  if(!dl || !state.roster.length) return;
+  dl.innerHTML = state.roster.map(r=>
+    `<option value="${r.email}">${r.name || r.email}</option>`
+  ).join('');
+}
+
+// Sub Status 依所屬分類（線上/忙碌/離開/離線）套用跟報表一致的底色，方便掃描辨識
+function subStatusColorClass(sub){
+  const s = String(sub||'').toLowerCase().trim();
+  let code = SUBMAP[s];
+  if(!code){
+    const parts = s.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')) code = 'on_ic_chat_dual';
+  }
+  if(!code) return '';
+  if(code.indexOf('on_')===0) return 'blk-online';
+  if(code.indexOf('busy_')===0) return 'blk-busy';
+  if(code.indexOf('away_')===0) return 'blk-away';
+  if(code==='offline') return 'blk-offline';
+  return '';
+}
+
 document.getElementById('btn-filter-statuslog').onclick = ()=>{
   const countEl = document.getElementById('statuslog-filter-count');
   const tbl = document.getElementById('statuslog-filter-table');
@@ -182,14 +207,24 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
   }
 
   populateSubStatusOptions();
+  populateAgentSuggestions();
 
-  const emailFilter = document.getElementById('statuslog-filter-email').value.trim().toLowerCase();
+  // Email 或姓名皆可搜尋：先查③名單找出符合姓名的 Email，再跟 Email 本身模糊比對一起用
+  const rawFilter = document.getElementById('statuslog-filter-email').value.trim().toLowerCase();
   const subFilter = document.getElementById('statuslog-filter-substatus').value;
+
+  const matchedEmailsByName = rawFilter
+    ? new Set(state.roster.filter(r=> (r.name||'').toLowerCase().includes(rawFilter)).map(r=>r.email))
+    : null;
 
   const filtered = state.status.rows.filter(r=>{
     const email = String(r[stMap.email]||'').toLowerCase().trim();
     const sub = String(r[stMap.sub_status]||'').trim();
-    if(emailFilter && email !== emailFilter) return false;
+    if(rawFilter){
+      const emailMatches = email.includes(rawFilter);
+      const nameMatches = matchedEmailsByName && matchedEmailsByName.has(email);
+      if(!emailMatches && !nameMatches) return false;
+    }
     if(subFilter && sub !== subFilter) return false;
     return true;
   });
@@ -197,10 +232,11 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
   const bodyRows = filtered.map(r=>{
     const cls = classifyStatusRow(r, stMap);
     const startCellClass = cls.included ? 'cell-included' : 'cell-alert';
+    const subClass = subStatusColorClass(r[stMap.sub_status]);
     const reasonText = cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`;
     return `<tr>
       <td>${r[stMap.email]||'-'}</td>
-      <td>${r[stMap.sub_status]||'-'}</td>
+      <td class="${subClass}">${r[stMap.sub_status]||'-'}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.start_datetime])}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.end_datetime])}</td>
       <td class="sl-reason">${reasonText}</td>
