@@ -131,38 +131,59 @@ function renderOrgBar(dateStr, timeStr, summary){
   </div>`;
 }
 
-function renderManagerTable(mgr, orgSummary, index){
-  const g = mgr.groupAvg;
-  const color = mgrColor(index);
-  const avgRow = `<tr class="rt-avg-row">
-    <td>組平均</td>
-    <td>${numOrDash(g.callAvg)}</td>
-    <td${csatCellClass(g.callCsatAvg)}>${pctRT(g.callCsatAvg)}</td>
-    <td>${numOrDash(g.chatAvg)}</td>
-    <td>${pctRT(g.chatCsatAvg)}</td>
-    <td${belowAvgCellClass(g.totalAvg, orgSummary.totalAvg)}>${numOrDash(g.totalAvg)}</td>
-    <td${onCaseCellClass(g.onCaseAvg||0)}>${secToHMSRT(g.onCaseAvg)}</td>
-  </tr>`;
-  const agentRows = mgr.agents.map(a=>{
-    const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
-    const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
-    const total = a.icCount+a.chatCount;
-    return `<tr>
-      <td style="background:${color.bg}66;">${a.name}${a.halfDay?' (半)':''}</td>
-      <td>${a.icCount}</td>
-      <td${csatCellClass(callFrac)}>${callFrac!==null?pctRT(callFrac):'-'}</td>
-      <td>${a.chatCount}</td>
-      <td>${chatFrac!==null?pctRT(chatFrac):'-'}</td>
-      <td${belowAvgCellClass(total, g.totalAvg)}>${total}</td>
-      <td${onCaseCellClass(a.onCaseSec)}>${secToHMSRT(a.onCaseSec)}</td>
-    </tr>`;
-  }).join('');
-  return `<table class="rt-mgr-table">
-    <thead>
-      <tr><th class="rt-mgr-name" colspan="7" style="background:${color.bg};color:${color.text};">${mgr.managerShort}</th></tr>
-      <tr><th>姓名</th><th>Call產能</th><th>Call滿意度</th><th>Chat產能</th><th>Chat滿意度</th><th>Total產能</th><th>文書</th></tr>
-    </thead>
-    <tbody>${avgRow}${agentRows}</tbody>
+function renderMergedManagersTable(managers, orgSummary){
+  const maxAgents = Math.max(0, ...managers.map(m=>m.agents.length));
+
+  let h1 = '<tr>';
+  managers.forEach((mgr, i)=>{
+    const color = mgrColor(i);
+    h1 += `<th colspan="7" style="background:${color.bg};color:${color.text};">${mgr.managerShort}</th>`;
+  });
+  h1 += '</tr>';
+
+  let h2 = '<tr>';
+  managers.forEach(()=>{
+    h2 += '<th>姓名</th><th>Call產能</th><th>Call滿意度</th><th>Chat產能</th><th>Chat滿意度</th><th>Total產能</th><th>文書</th>';
+  });
+  h2 += '</tr>';
+
+  let avgRow = '<tr class="rt-avg-row">';
+  managers.forEach(mgr=>{
+    const g = mgr.groupAvg;
+    avgRow += `<td>組平均</td>
+      <td>${numOrDash(g.callAvg)}</td>
+      <td${csatCellClass(g.callCsatAvg)}>${pctRT(g.callCsatAvg)}</td>
+      <td>${numOrDash(g.chatAvg)}</td>
+      <td>${pctRT(g.chatCsatAvg)}</td>
+      <td${belowAvgCellClass(g.totalAvg, orgSummary.totalAvg)}>${numOrDash(g.totalAvg)}</td>
+      <td${onCaseCellClass(g.onCaseAvg||0)}>${secToHMSRT(g.onCaseAvg)}</td>`;
+  });
+  avgRow += '</tr>';
+
+  let bodyRows = '';
+  for(let idx=0; idx<maxAgents; idx++){
+    bodyRows += '<tr>';
+    managers.forEach((mgr, mi)=>{
+      const a = mgr.agents[idx];
+      if(!a){ bodyRows += '<td colspan="7"></td>'; return; }
+      const color = mgrColor(mi);
+      const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
+      const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
+      const total = a.icCount+a.chatCount;
+      bodyRows += `<td style="background:${color.bg}66;">${a.name}${a.halfDay?' (半)':''}</td>
+        <td>${a.icCount}</td>
+        <td${csatCellClass(callFrac)}>${callFrac!==null?pctRT(callFrac):'-'}</td>
+        <td>${a.chatCount}</td>
+        <td>${chatFrac!==null?pctRT(chatFrac):'-'}</td>
+        <td${belowAvgCellClass(total, mgr.groupAvg.totalAvg)}>${total}</td>
+        <td${onCaseCellClass(a.onCaseSec)}>${secToHMSRT(a.onCaseSec)}</td>`;
+    });
+    bodyRows += '</tr>';
+  }
+
+  return `<table class="rt-merged-table">
+    <thead>${h1}${h2}</thead>
+    <tbody>${avgRow}${bodyRows}</tbody>
   </table>`;
 }
 
@@ -170,10 +191,11 @@ function renderSkillSection(title, dateStr, timeStr, data){
   if(!data.managers.length){
     return `<div class="rt-skill-title"><span class="dot"></span>${title}</div><p class="rt-empty-note">目前沒有符合條件的專員資料（計入成績已勾選，且當時段已有 Call 或 Chat 產能）。</p>`;
   }
-  const mgrTables = data.managers.map((mgr,i)=> renderManagerTable(mgr, data.orgSummary, i)).join('');
   return `<div class="rt-skill-title"><span class="dot"></span>${title}</div>
     ${renderOrgBar(dateStr, timeStr, data.orgSummary)}
-    <div class="rt-managers-row">${mgrTables}</div>`;
+    <div class="report-wrap" style="overflow-x:auto;max-height:none;">
+      ${renderMergedManagersTable(data.managers, data.orgSummary)}
+    </div>`;
 }
 
 let lastRealtimeData = null;
