@@ -124,11 +124,11 @@ function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
     '<th>Day</th><th>Call產能(均)</th><th>Chat產能(均)</th><th>Total產能(均)</th><th>Call滿意度(均)</th><th>Chat滿意度(均)</th><th>文書(均)</th><th>報表時間</th>' +
     (totalCols>8 ? `<th colspan="${totalCols-8}"></th>` : '') +
     '</tr>';
-  const summaryValueRow = '<tr class="rt-summary-row">' +
-    `<td>${dateStr}</td><td>${numOrDash(orgSummary.callAvg)}</td><td>${numOrDash(orgSummary.chatAvg)}</td>` +
-    `<td>${numOrDash(orgSummary.totalAvg)}</td><td>${pctRT(orgSummary.callCsatAvg)}</td><td>${pctRT(orgSummary.chatCsatAvg)}</td>` +
-    `<td>${secToHMSRT(orgSummary.onCaseAvg)}</td><td class="rt-report-time">${timeStr}</td>` +
-    (totalCols>8 ? `<td colspan="${totalCols-8}"></td>` : '') +
+  const summaryValueRow = '<tr class="rt-summary-row rt-summary-value">' +
+    `<th>${dateStr}</th><th>${numOrDash(orgSummary.callAvg)}</th><th>${numOrDash(orgSummary.chatAvg)}</th>` +
+    `<th>${numOrDash(orgSummary.totalAvg)}</th><th>${pctRT(orgSummary.callCsatAvg)}</th><th>${pctRT(orgSummary.chatCsatAvg)}</th>` +
+    `<th>${secToHMSRT(orgSummary.onCaseAvg)}</th><th class="rt-report-time">${timeStr}</th>` +
+    (totalCols>8 ? `<th colspan="${totalCols-8}"></th>` : '') +
     '</tr>';
 
   const maxAgents = Math.max(0, ...managers.map(m=>m.agents.length));
@@ -186,8 +186,8 @@ function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
   }
 
   return `<table class="rt-merged-table">
-    <thead>${summaryLabelRow}${h1}${h2}</thead>
-    <tbody>${summaryValueRow}${avgRow}${bodyRows}</tbody>
+    <thead>${summaryLabelRow}${summaryValueRow}${h1}${h2}</thead>
+    <tbody>${avgRow}${bodyRows}</tbody>
   </table>`;
 }
 
