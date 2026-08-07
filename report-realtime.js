@@ -115,23 +115,22 @@ function summarizeSkillGroup(list){
   return {orgSummary, managers};
 }
 
-function renderOrgBar(dateStr, timeStr, summary){
-  function chip(label, value, primary){
-    return `<div class="stat-chip${primary?' stat-primary':''}"><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`;
-  }
-  return `<div class="rt-org-bar">
-    ${chip('Day', dateStr)}
-    ${chip('Call產能(均)', numOrDash(summary.callAvg))}
-    ${chip('Chat產能(均)', numOrDash(summary.chatAvg))}
-    ${chip('Total產能(均)', numOrDash(summary.totalAvg), true)}
-    ${chip('Call滿意度(均)', pctRT(summary.callCsatAvg))}
-    ${chip('Chat滿意度(均)', pctRT(summary.chatCsatAvg))}
-    ${chip('文書(均)', secToHMSRT(summary.onCaseAvg))}
-    ${chip('報表時間', timeStr, true)}
-  </div>`;
-}
+function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
+  const totalCols = managers.length * 7;
 
-function renderMergedManagersTable(managers, orgSummary){
+  // 統計摘要整合進同一張表格最上面（不再是表格外的獨立區塊），
+  // 這樣複製整張表到 Google Sheets 時，摘要資料也會一起橫向貼過去
+  const summaryLabelRow = '<tr class="rt-summary-row">' +
+    '<th>Day</th><th>Call產能(均)</th><th>Chat產能(均)</th><th>Total產能(均)</th><th>Call滿意度(均)</th><th>Chat滿意度(均)</th><th>文書(均)</th><th>報表時間</th>' +
+    (totalCols>8 ? `<th colspan="${totalCols-8}"></th>` : '') +
+    '</tr>';
+  const summaryValueRow = '<tr class="rt-summary-row">' +
+    `<td>${dateStr}</td><td>${numOrDash(orgSummary.callAvg)}</td><td>${numOrDash(orgSummary.chatAvg)}</td>` +
+    `<td>${numOrDash(orgSummary.totalAvg)}</td><td>${pctRT(orgSummary.callCsatAvg)}</td><td>${pctRT(orgSummary.chatCsatAvg)}</td>` +
+    `<td>${secToHMSRT(orgSummary.onCaseAvg)}</td><td class="rt-report-time">${timeStr}</td>` +
+    (totalCols>8 ? `<td colspan="${totalCols-8}"></td>` : '') +
+    '</tr>';
+
   const maxAgents = Math.max(0, ...managers.map(m=>m.agents.length));
 
   let h1 = '<tr>';
@@ -165,7 +164,12 @@ function renderMergedManagersTable(managers, orgSummary){
     bodyRows += '<tr>';
     managers.forEach((mgr, mi)=>{
       const a = mgr.agents[idx];
-      if(!a){ bodyRows += '<td colspan="7"></td>'; return; }
+      if(!a){
+        // 用7個各自獨立的空白儲存格補空，不用colspan——
+        // colspan會讓該列的欄位數跟其他列不一致，導致對齊規則跑掉
+        bodyRows += '<td class="rt-blank-cell"></td>'.repeat(7);
+        return;
+      }
       const color = mgrColor(mi);
       const callFrac = (a.icGood+a.icBad)>0 ? a.icGood/(a.icGood+a.icBad) : null;
       const chatFrac = (a.chatGood+a.chatBad)>0 ? a.chatGood/(a.chatGood+a.chatBad) : null;
@@ -182,8 +186,8 @@ function renderMergedManagersTable(managers, orgSummary){
   }
 
   return `<table class="rt-merged-table">
-    <thead>${h1}${h2}</thead>
-    <tbody>${avgRow}${bodyRows}</tbody>
+    <thead>${summaryLabelRow}${h1}${h2}</thead>
+    <tbody>${summaryValueRow}${avgRow}${bodyRows}</tbody>
   </table>`;
 }
 
@@ -192,9 +196,8 @@ function renderSkillSection(title, dateStr, timeStr, data){
     return `<div class="rt-skill-title"><span class="dot"></span>${title}</div><p class="rt-empty-note">目前沒有符合條件的專員資料（計入成績已勾選，且當時段已有 Call 或 Chat 產能）。</p>`;
   }
   return `<div class="rt-skill-title"><span class="dot"></span>${title}</div>
-    ${renderOrgBar(dateStr, timeStr, data.orgSummary)}
     <div class="report-wrap" style="overflow-x:auto;max-height:none;">
-      ${renderMergedManagersTable(data.managers, data.orgSummary)}
+      ${renderMergedManagersTable(data.managers, data.orgSummary, dateStr, timeStr)}
     </div>`;
 }
 
