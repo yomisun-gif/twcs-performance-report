@@ -25,6 +25,7 @@ const state = {
   chat: {rows:[], headers:[], map:{}},
   status: {rows:[], headers:[], map:{}},
   hourly: {rows:[], headers:[], map:{}},
+  iact: {rows:[], headers:[], map:{}},
   roster: [],
   managers: {} // email(lower) -> 簡稱
 };
@@ -51,6 +52,10 @@ const REQ = {
   hourly: [
     ['email','Agent Email（專員 Email，用於加總外撥通數）'],
     ['call_outbound','Call Outbound（外撥通數，會加總後填入「忙碌 - 外撥(通數)」欄位）']
+  ],
+  iact: [
+    ['email','Agent Email（專員 Email）'],
+    ['channel_type','Channel Type（排除 Internet Call，其餘渠道整筆都計入 IACT 產能）']
   ]
 };
 
@@ -66,11 +71,12 @@ const GUESS = {
   start_datetime:['status start time','start time'],
   end_datetime:['status end time','end time'],
   call_outbound:['call outbound','outbound'],
-  call_status:['call status']
+  call_status:['call status'],
+  channel_type:['channel type']
 };
 
 /* ============ Tabs ============ */
-const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能', dashboard:'產能儀表板', about:'關於'};
+const TAB_TITLE = {upload:'上傳資料', mapping:'欄位對應', roster:'專員名單 / 主管簡稱', result:'報表結果', realtime:'即時產能', dashboard:'產能儀表板', iact:'IACT', about:'關於'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
@@ -165,14 +171,16 @@ function guessSourceType(filename, headers){
   if(fn.includes('chat_session')) return 'chat';
   if(fn.includes('historical_status') || fn.includes('status_log')) return 'status';
   if(fn.includes('hourly_activity')) return 'hourly';
+  if(fn.includes('iact') || fn.includes('productivity_detail')) return 'iact';
   const h = headers.map(x=>String(x).toLowerCase());
   if(h.some(x=>x.includes('chat owner'))) return 'chat';
   if(h.some(x=>x.includes('sub status'))) return 'status';
   if(h.some(x=>x.includes('call outbound'))) return 'hourly';
+  if(h.some(x=>x.includes('channel type'))) return 'iact';
   if(h.some(x=>x.includes('last agent'))) return 'ic';
   return null;
 }
-const SOURCE_LABEL = {ic:'Internet Call 明細', chat:'Chat 明細', status:'Status Log', hourly:'Hourly Activity(外撥通數)'};
+const SOURCE_LABEL = {ic:'Internet Call 明細', chat:'Chat 明細', status:'Status Log', hourly:'Hourly Activity(外撥通數)', iact:'IACT 產量明細'};
 function addDetectRow(filename, initialType, uncertain, onChange){
   const container = document.getElementById('detect-results');
   const row = document.createElement('div');
@@ -184,6 +192,7 @@ function addDetectRow(filename, initialType, uncertain, onChange){
       <option value="chat" ${initialType==='chat'?'selected':''}>${SOURCE_LABEL.chat}</option>
       <option value="status" ${initialType==='status'?'selected':''}>${SOURCE_LABEL.status}</option>
       <option value="hourly" ${initialType==='hourly'?'selected':''}>${SOURCE_LABEL.hourly}</option>
+      <option value="iact" ${initialType==='iact'?'selected':''}>${SOURCE_LABEL.iact}</option>
     </select>`;
   container.appendChild(row);
   row.querySelector('.detect-select').addEventListener('change', (e)=> onChange(e.target.value));
@@ -228,6 +237,7 @@ setupUpload('file-ic','ic');
 setupUpload('file-chat','chat');
 setupUpload('file-status','status');
 setupUpload('file-hourly','hourly');
+setupUpload('file-iact','iact');
 
 /* ============ 欄位對應 UI ============ */
 function renderMapping(sourceKey){
@@ -248,10 +258,10 @@ function renderMapping(sourceKey){
     sel.onchange = ()=>{ state[sel.dataset.source].map[sel.dataset.key] = sel.value; };
   });
 }
-['ic','chat','status','hourly'].forEach(renderMapping);
+['ic','chat','status','hourly','iact'].forEach(renderMapping);
 
 document.getElementById('btn-save-mapping').onclick = async ()=>{
-  for(const key of ['ic','chat','status','hourly']){
+  for(const key of ['ic','chat','status','hourly','iact']){
     if(state[key].headers.length){
       await storageSet('colmap_'+key, JSON.stringify({headers:state[key].headers, map:state[key].map}));
     }
@@ -652,7 +662,7 @@ function classifyStatusRow(row, stMap){
 function buildRawAgentStats(){
   const warnings = [];
   if(!state.roster.length){ warnings.push('尚未設定專員名單，將以資料中出現過的 Email 作為基準列出。'); }
-  ['ic','chat','status','hourly'].forEach(k=>{
+  ['ic','chat','status','hourly','iact'].forEach(k=>{
     REQ[k].forEach(([key,label])=>{
       if(state[k].rows.length && !state[k].map[key]){
         warnings.push(`【${k.toUpperCase()}】「${label}」尚未對應欄位，相關計算將以 - 或 0 呈現。`);
@@ -660,7 +670,7 @@ function buildRawAgentStats(){
     });
   });
 
-  const icMap = state.ic.map, chatMap = state.chat.map, stMap = state.status.map, hrMap = state.hourly.map;
+  const icMap = state.ic.map, chatMap = state.chat.map, stMap = state.status.map, hrMap = state.hourly.map, iactMap = state.iact.map;
 
   let emails;
   if(state.roster.length){
@@ -674,6 +684,16 @@ function buildRawAgentStats(){
   }
   const rosterInfo = {};
   state.roster.forEach(r=> rosterInfo[r.email] = r);
+
+  // ---- IACT：依 Agent Email 計算筆數，排除 Channel Type = Internet Call（該渠道另外有 IC 明細表計算）----
+  const iactCountByEmail = {};
+  state.iact.rows.forEach(r=>{
+    const e = String(r[iactMap.email]||'').toLowerCase().trim();
+    if(!e) return;
+    const channel = String(r[iactMap.channel_type]||'').trim().toLowerCase();
+    if(channel === 'internet call') return;
+    iactCountByEmail[e] = (iactCountByEmail[e]||0) + 1;
+  });
 
   // ---- Hourly Activity：依 Agent Email 加總 Call Outbound(in number) ----
   const outboundCountByEmail = {};
@@ -749,9 +769,10 @@ function buildRawAgentStats(){
     a.status[code].count++;
   });
 
-  // 補上外撥通數（來自 Hourly Activity），跟 status 累計放在同一個 agent 物件方便取用
+  // 補上外撥通數（來自 Hourly Activity）、IACT產能，跟 status 累計放在同一個 agent 物件方便取用
   emails.forEach(e=>{
     agents[e].busyOutCount = outboundCountByEmail[e] || 0;
+    agents[e].iactCount = iactCountByEmail[e] || 0;
   });
 
   return {agents, emails, warnings};
