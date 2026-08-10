@@ -20,7 +20,10 @@ function csGroupStats(list){
   const halfDayCount = positive.filter(a=>a.halfDay).length;
   const denom = manpower - halfDayCount*0.5;
   const callSum = positive.reduce((s,a)=>s+a.icCount,0);
-  const iactSum = positive.reduce((s,a)=>s+(a.iactCount||0),0);
+  // IACT總和用「這個分類全部人」，不限定Call>0——
+  // 因為IACT本身排除了Internet Call渠道，可能有人當天沒接到電話(Call=0)
+  // 但仍有Chat/Email/Comment等IACT產能，限定在Call>0的人身上加總會漏算這些人
+  const iactSum = list.reduce((s,a)=>s+(a.iactCount||0),0);
   return {
     callAvg: denom>0 ? callSum/denom : null,
     iactAvg: denom>0 ? iactSum/denom : null,
