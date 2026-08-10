@@ -13,21 +13,29 @@ function csFmtCombined(callV, iactV){
   return ((callV||0) + (iactV||0)).toFixed(1);
 }
 
-// 分母規則：人力 = Call>0 的人（半天不排除，只是denom算0.5）
+// Call均、IACT均「各自獨立」計算人力/分母，不共用同一組分母：
+//   Call均分母 = Call>0 的人（半天不排除，只算0.5人力）
+//   IACT均分母 = IACT>0 的人（半天不排除，只算0.5人力）——
+//     這兩群人不是同一批：可能有人當天沒接到電話(Call=0)但有Chat/Email/Comment產能(IACT>0)，
+//     這種人不會被算進Call的分母，但要被算進IACT的分母
 function csGroupStats(list){
-  const positive = list.filter(a=>a.icCount>0);
-  const manpower = positive.length;
-  const halfDayCount = positive.filter(a=>a.halfDay).length;
+  const callPositive = list.filter(a=>a.icCount>0);
+  const manpower = callPositive.length;
+  const halfDayCount = callPositive.filter(a=>a.halfDay).length;
   const denom = manpower - halfDayCount*0.5;
-  const callSum = positive.reduce((s,a)=>s+a.icCount,0);
-  // IACT總和用「這個分類全部人」，不限定Call>0——
-  // 因為IACT本身排除了Internet Call渠道，可能有人當天沒接到電話(Call=0)
-  // 但仍有Chat/Email/Comment等IACT產能，限定在Call>0的人身上加總會漏算這些人
-  const iactSum = list.reduce((s,a)=>s+(a.iactCount||0),0);
+  const callSum = callPositive.reduce((s,a)=>s+a.icCount,0);
+
+  const iactPositive = list.filter(a=>a.iactCount>0);
+  const iactManpower = iactPositive.length;
+  const iactHalfDayCount = iactPositive.filter(a=>a.halfDay).length;
+  const iactDenom = iactManpower - iactHalfDayCount*0.5;
+  const iactSum = iactPositive.reduce((s,a)=>s+a.iactCount,0);
+
   return {
     callAvg: denom>0 ? callSum/denom : null,
-    iactAvg: denom>0 ? iactSum/denom : null,
-    manpower, halfDayCount, denom, callSum, iactSum
+    iactAvg: iactDenom>0 ? iactSum/iactDenom : null,
+    manpower, halfDayCount, denom, callSum,
+    iactManpower, iactHalfDayCount, iactDenom, iactSum
   };
 }
 
@@ -68,7 +76,10 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
     const sTotal = csGroupStats(all);
 
     function refOf(s){
-      return s ? {manpower:s.manpower, halfDayCount:s.halfDayCount, denom:s.denom, callSum:s.callSum, iactSum:s.iactSum} : null;
+      return s ? {
+        manpower:s.manpower, halfDayCount:s.halfDayCount, denom:s.denom, callSum:s.callSum,
+        iactManpower:s.iactManpower, iactHalfDayCount:s.iactHalfDayCount, iactDenom:s.iactDenom, iactSum:s.iactSum
+      } : null;
     }
 
     const produceRows = [
@@ -102,15 +113,15 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
     function renderTable(tblId, rows, showIact){
       const tbl = document.getElementById(tblId);
       const extraHead = showIact
-        ? '<th>人力</th><th>半天人力</th><th>分母</th><th>Call總和</th><th>IACT總和</th>'
+        ? '<th>Call人力</th><th>Call半天</th><th>Call分母</th><th>Call總和</th><th>IACT人力</th><th>IACT半天</th><th>IACT分母</th><th>IACT總和</th>'
         : '<th>人力</th><th>半天人力</th><th>分母</th><th>Call總和</th>';
       const bodyHtml = rows.map(r=>{
         const ref = r[3];
         const refCells = ref
           ? (showIact
-              ? `<td>${ref.manpower}</td><td>${ref.halfDayCount}</td><td>${ref.denom}</td><td>${ref.callSum}</td><td>${ref.iactSum}</td>`
+              ? `<td>${ref.manpower}</td><td>${ref.halfDayCount}</td><td>${ref.denom}</td><td>${ref.callSum}</td><td>${ref.iactManpower}</td><td>${ref.iactHalfDayCount}</td><td>${ref.iactDenom}</td><td>${ref.iactSum}</td>`
               : `<td>${ref.manpower}</td><td>${ref.halfDayCount}</td><td>${ref.denom}</td><td>${ref.callSum}</td>`)
-          : (showIact ? '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>' : '<td>-</td><td>-</td><td>-</td><td>-</td>');
+          : (showIact ? '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>' : '<td>-</td><td>-</td><td>-</td><td>-</td>');
         return `<tr><td style="text-align:left;">${r[0]}</td><td style="text-align:left;">${r[1]}</td><td>${r[2]||'&nbsp;'}</td>${refCells}</tr>`;
       }).join('');
       tbl.innerHTML = `<thead><tr><th>分類</th><th>項目</th><th>數值</th>${extraHead}</tr></thead><tbody>${bodyHtml}</tbody>`;
