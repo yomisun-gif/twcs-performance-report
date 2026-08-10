@@ -13,29 +13,34 @@ function csFmtCombined(callV, iactV){
   return ((callV||0) + (iactV||0)).toFixed(1);
 }
 
-// Call均、IACT均「各自獨立」計算人力/分母，不共用同一組分母：
-//   Call均分母 = Call>0 的人（半天不排除，只算0.5人力）
-//   IACT均分母 = IACT>0 的人（半天不排除，只算0.5人力）——
-//     這兩群人不是同一批：可能有人當天沒接到電話(Call=0)但有Chat/Email/Comment產能(IACT>0)，
-//     這種人不會被算進Call的分母，但要被算進IACT的分母
+// Call均：一律用 Call>0 的人當分母（半天不排除，只算0.5人力）
+// IACT均：這裡刻意算出「兩種」，因為單一主管列跟合計列(IH/Total)的分母規則不一樣：
+//   - 單一主管列(Patty/Lucy)：用 IACT 自己的分母（IACT>0的人力）
+//   - 合計列(非全技能IH/全技能IH/Total)：沿用 Call 的分母，IACT總和則是該分類全部人加總
 function csGroupStats(list){
   const callPositive = list.filter(a=>a.icCount>0);
   const manpower = callPositive.length;
   const halfDayCount = callPositive.filter(a=>a.halfDay).length;
   const denom = manpower - halfDayCount*0.5;
   const callSum = callPositive.reduce((s,a)=>s+a.icCount,0);
+  const callAvg = denom>0 ? callSum/denom : null;
 
+  // 合計列用：IACT總和＝該分類「全部人」加總，分母沿用Call的分母
+  const iactSumAll = list.reduce((s,a)=>s+(a.iactCount||0),0);
+  const iactAvgAggregate = denom>0 ? iactSumAll/denom : null;
+
+  // 單一主管列用：只算IACT>0的人，用IACT自己的分母
   const iactPositive = list.filter(a=>a.iactCount>0);
   const iactManpower = iactPositive.length;
   const iactHalfDayCount = iactPositive.filter(a=>a.halfDay).length;
   const iactDenom = iactManpower - iactHalfDayCount*0.5;
-  const iactSum = iactPositive.reduce((s,a)=>s+a.iactCount,0);
+  const iactSumOwn = iactPositive.reduce((s,a)=>s+a.iactCount,0);
+  const iactAvgIndividual = iactDenom>0 ? iactSumOwn/iactDenom : null;
 
   return {
-    callAvg: denom>0 ? callSum/denom : null,
-    iactAvg: iactDenom>0 ? iactSum/iactDenom : null,
-    manpower, halfDayCount, denom, callSum,
-    iactManpower, iactHalfDayCount, iactDenom, iactSum
+    callAvg, manpower, halfDayCount, denom, callSum,
+    iactAvgAggregate, iactSumAll,
+    iactAvgIndividual, iactManpower, iactHalfDayCount, iactDenom, iactSumOwn
   };
 }
 
@@ -75,38 +80,47 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
     const sNonFull = csGroupStats(nonFullAll);
     const sTotal = csGroupStats(all);
 
-    function refOf(s){
-      return s ? {
+    // mode: 'individual' = Patty/Lucy 用IACT自己的分母；'aggregate' = 合計列沿用Call分母
+    function refOf(s, mode){
+      if(!s) return null;
+      if(mode==='individual'){
+        return {
+          manpower:s.manpower, halfDayCount:s.halfDayCount, denom:s.denom, callSum:s.callSum,
+          iactManpower:s.iactManpower, iactHalfDayCount:s.iactHalfDayCount, iactDenom:s.iactDenom, iactSum:s.iactSumOwn
+        };
+      }
+      return {
         manpower:s.manpower, halfDayCount:s.halfDayCount, denom:s.denom, callSum:s.callSum,
-        iactManpower:s.iactManpower, iactHalfDayCount:s.iactHalfDayCount, iactDenom:s.iactDenom, iactSum:s.iactSum
-      } : null;
+        iactManpower:s.manpower, iactHalfDayCount:s.halfDayCount, iactDenom:s.denom, iactSum:s.iactSumAll
+      };
     }
+    function iactValOf(s, mode){ return mode==='individual' ? s.iactAvgIndividual : s.iactAvgAggregate; }
 
     const produceRows = [
       ['產能','Call-Jackie', '-', null],
-      ['產能','Call-Patty', csFmt(sPatty.callAvg), refOf(sPatty)],
-      ['產能','Call-Lucy', csFmt(sLucy.callAvg), refOf(sLucy)],
+      ['產能','Call-Patty', csFmt(sPatty.callAvg), refOf(sPatty,'individual')],
+      ['產能','Call-Lucy', csFmt(sLucy.callAvg), refOf(sLucy,'individual')],
       ['產能','Call-Kelly', '-', null],
-      ['產能','Call-非全技能(IH)', csFmt(sNonFull.callAvg), refOf(sNonFull)],
+      ['產能','Call-非全技能(IH)', csFmt(sNonFull.callAvg), refOf(sNonFull,'aggregate')],
       ['產能','Call-非全技能(BPO)', '', null],
-      ['產能','Call -全技能(IH)', csFmt(sFull.callAvg), refOf(sFull)],
+      ['產能','Call -全技能(IH)', csFmt(sFull.callAvg), refOf(sFull,'aggregate')],
       ['產能','Call -全技能(BPO)', '', null],
-      ['產能','Call -(非全技能Total)', csFmt(sNonFull.callAvg), refOf(sNonFull)],
-      ['產能','Call -(全技能Total)', csFmt(sFull.callAvg), refOf(sFull)],
-      ['產能','Call -(Total)', csFmt(sTotal.callAvg), refOf(sTotal)]
+      ['產能','Call -(非全技能Total)', csFmt(sNonFull.callAvg), refOf(sNonFull,'aggregate')],
+      ['產能','Call -(全技能Total)', csFmt(sFull.callAvg), refOf(sFull,'aggregate')],
+      ['產能','Call -(Total)', csFmt(sTotal.callAvg), refOf(sTotal,'aggregate')]
     ];
     const iactRows = [
       ['含IACT產能','Call-Jackie', '-', null],
-      ['含IACT產能','Call-Patty', csFmtCombined(sPatty.callAvg, sPatty.iactAvg), refOf(sPatty)],
-      ['含IACT產能','Call-Lucy', csFmtCombined(sLucy.callAvg, sLucy.iactAvg), refOf(sLucy)],
+      ['含IACT產能','Call-Patty', csFmtCombined(sPatty.callAvg, iactValOf(sPatty,'individual')), refOf(sPatty,'individual')],
+      ['含IACT產能','Call-Lucy', csFmtCombined(sLucy.callAvg, iactValOf(sLucy,'individual')), refOf(sLucy,'individual')],
       ['含IACT產能','Call-Kelly', '-', null],
-      ['含IACT產能','Call-非全技能(IH)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg), refOf(sNonFull)],
+      ['含IACT產能','Call-非全技能(IH)', csFmtCombined(sNonFull.callAvg, iactValOf(sNonFull,'aggregate')), refOf(sNonFull,'aggregate')],
       ['含IACT產能','Call-非全技能(BPO)', '', null],
-      ['含IACT產能','Call -全技能(IH)', csFmtCombined(sFull.callAvg, sFull.iactAvg), refOf(sFull)],
+      ['含IACT產能','Call -全技能(IH)', csFmtCombined(sFull.callAvg, iactValOf(sFull,'aggregate')), refOf(sFull,'aggregate')],
       ['含IACT產能','Call -全技能(BPO)', '', null],
-      ['含IACT產能','Call -(非全技能Total)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg), refOf(sNonFull)],
-      ['含IACT產能','Call -(全技能Total)', csFmtCombined(sFull.callAvg, sFull.iactAvg), refOf(sFull)],
-      ['含IACT產能','Call -(Total)', csFmtCombined(sTotal.callAvg, sTotal.iactAvg), refOf(sTotal)]
+      ['含IACT產能','Call -(非全技能Total)', csFmtCombined(sNonFull.callAvg, iactValOf(sNonFull,'aggregate')), refOf(sNonFull,'aggregate')],
+      ['含IACT產能','Call -(全技能Total)', csFmtCombined(sFull.callAvg, iactValOf(sFull,'aggregate')), refOf(sFull,'aggregate')],
+      ['含IACT產能','Call -(Total)', csFmtCombined(sTotal.callAvg, iactValOf(sTotal,'aggregate')), refOf(sTotal,'aggregate')]
     ];
     lastCallSummaryRows = {produce: produceRows, iact: iactRows};
 
