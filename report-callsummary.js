@@ -24,7 +24,7 @@ function csGroupStats(list){
   return {
     callAvg: denom>0 ? callSum/denom : null,
     iactAvg: denom>0 ? iactSum/denom : null,
-    manpower, halfDayCount, denom
+    manpower, halfDayCount, denom, callSum, iactSum
   };
 }
 
@@ -64,43 +64,56 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
     const sNonFull = csGroupStats(nonFullAll);
     const sTotal = csGroupStats(all);
 
+    function refOf(s){
+      return s ? {manpower:s.manpower, halfDayCount:s.halfDayCount, denom:s.denom, callSum:s.callSum, iactSum:s.iactSum} : null;
+    }
+
     const produceRows = [
-      ['產能','Call-Jackie', '-'],
-      ['產能','Call-Patty', csFmt(sPatty.callAvg)],
-      ['產能','Call-Lucy', csFmt(sLucy.callAvg)],
-      ['產能','Call-Kelly', '-'],
-      ['產能','Call-非全技能(IH)', csFmt(sNonFull.callAvg)],
-      ['產能','Call-非全技能(BPO)', ''],
-      ['產能','Call -全技能(IH)', csFmt(sFull.callAvg)],
-      ['產能','Call -全技能(BPO)', ''],
-      ['產能','Call -(非全技能Total)', csFmt(sNonFull.callAvg)],
-      ['產能','Call -(全技能Total)', csFmt(sFull.callAvg)],
-      ['產能','Call -(Total)', csFmt(sTotal.callAvg)]
+      ['產能','Call-Jackie', '-', null],
+      ['產能','Call-Patty', csFmt(sPatty.callAvg), refOf(sPatty)],
+      ['產能','Call-Lucy', csFmt(sLucy.callAvg), refOf(sLucy)],
+      ['產能','Call-Kelly', '-', null],
+      ['產能','Call-非全技能(IH)', csFmt(sNonFull.callAvg), refOf(sNonFull)],
+      ['產能','Call-非全技能(BPO)', '', null],
+      ['產能','Call -全技能(IH)', csFmt(sFull.callAvg), refOf(sFull)],
+      ['產能','Call -全技能(BPO)', '', null],
+      ['產能','Call -(非全技能Total)', csFmt(sNonFull.callAvg), refOf(sNonFull)],
+      ['產能','Call -(全技能Total)', csFmt(sFull.callAvg), refOf(sFull)],
+      ['產能','Call -(Total)', csFmt(sTotal.callAvg), refOf(sTotal)]
     ];
     const iactRows = [
-      ['含IACT產能','Call-Jackie', '-'],
-      ['含IACT產能','Call-Patty', csFmtCombined(sPatty.callAvg, sPatty.iactAvg)],
-      ['含IACT產能','Call-Lucy', csFmtCombined(sLucy.callAvg, sLucy.iactAvg)],
-      ['含IACT產能','Call-Kelly', '-'],
-      ['含IACT產能','Call-非全技能(IH)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg)],
-      ['含IACT產能','Call-非全技能(BPO)', ''],
-      ['含IACT產能','Call -全技能(IH)', csFmtCombined(sFull.callAvg, sFull.iactAvg)],
-      ['含IACT產能','Call -全技能(BPO)', ''],
-      ['含IACT產能','Call -(非全技能Total)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg)],
-      ['含IACT產能','Call -(全技能Total)', csFmtCombined(sFull.callAvg, sFull.iactAvg)],
-      ['含IACT產能','Call -(Total)', csFmtCombined(sTotal.callAvg, sTotal.iactAvg)]
+      ['含IACT產能','Call-Jackie', '-', null],
+      ['含IACT產能','Call-Patty', csFmtCombined(sPatty.callAvg, sPatty.iactAvg), refOf(sPatty)],
+      ['含IACT產能','Call-Lucy', csFmtCombined(sLucy.callAvg, sLucy.iactAvg), refOf(sLucy)],
+      ['含IACT產能','Call-Kelly', '-', null],
+      ['含IACT產能','Call-非全技能(IH)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg), refOf(sNonFull)],
+      ['含IACT產能','Call-非全技能(BPO)', '', null],
+      ['含IACT產能','Call -全技能(IH)', csFmtCombined(sFull.callAvg, sFull.iactAvg), refOf(sFull)],
+      ['含IACT產能','Call -全技能(BPO)', '', null],
+      ['含IACT產能','Call -(非全技能Total)', csFmtCombined(sNonFull.callAvg, sNonFull.iactAvg), refOf(sNonFull)],
+      ['含IACT產能','Call -(全技能Total)', csFmtCombined(sFull.callAvg, sFull.iactAvg), refOf(sFull)],
+      ['含IACT產能','Call -(Total)', csFmtCombined(sTotal.callAvg, sTotal.iactAvg), refOf(sTotal)]
     ];
     lastCallSummaryRows = {produce: produceRows, iact: iactRows};
 
-    function renderTable(tblId, rows){
+    function renderTable(tblId, rows, showIact){
       const tbl = document.getElementById(tblId);
-      const bodyHtml = rows.map(r=>
-        `<tr><td style="text-align:left;">${r[0]}</td><td style="text-align:left;">${r[1]}</td><td>${r[2]||'&nbsp;'}</td></tr>`
-      ).join('');
-      tbl.innerHTML = `<thead><tr><th>分類</th><th>項目</th><th>數值</th></tr></thead><tbody>${bodyHtml}</tbody>`;
+      const extraHead = showIact
+        ? '<th>人力</th><th>半天人力</th><th>分母</th><th>Call總和</th><th>IACT總和</th>'
+        : '<th>人力</th><th>半天人力</th><th>分母</th><th>Call總和</th>';
+      const bodyHtml = rows.map(r=>{
+        const ref = r[3];
+        const refCells = ref
+          ? (showIact
+              ? `<td>${ref.manpower}</td><td>${ref.halfDayCount}</td><td>${ref.denom}</td><td>${ref.callSum}</td><td>${ref.iactSum}</td>`
+              : `<td>${ref.manpower}</td><td>${ref.halfDayCount}</td><td>${ref.denom}</td><td>${ref.callSum}</td>`)
+          : (showIact ? '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>' : '<td>-</td><td>-</td><td>-</td><td>-</td>');
+        return `<tr><td style="text-align:left;">${r[0]}</td><td style="text-align:left;">${r[1]}</td><td>${r[2]||'&nbsp;'}</td>${refCells}</tr>`;
+      }).join('');
+      tbl.innerHTML = `<thead><tr><th>分類</th><th>項目</th><th>數值</th>${extraHead}</tr></thead><tbody>${bodyHtml}</tbody>`;
     }
-    renderTable('callsummary-table-produce', produceRows);
-    renderTable('callsummary-table-iact', iactRows);
+    renderTable('callsummary-table-produce', produceRows, false);
+    renderTable('callsummary-table-iact', iactRows, true);
 
     let warnHtml = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
     if(!state.iact.rows.length){
