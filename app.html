@@ -454,15 +454,32 @@
 
   <div class="card" style="margin-top:16px;">
     <h2>Call 摘要（複製貼上友善格式）</h2>
-    <p class="hint">固定 22 列輸出，方便直接複製最右欄數值貼到內部表單。BBT 不計入此區塊。Jackie／Kelly／BPO 系列目前是固定佔位（尚無資料），Patty／Lucy 依③名單裡的主管簡稱自動比對。半天的人「不排除」，但只算 0.5 人力（跟上面 IACT 明細的半天規則不同，這區塊獨立計算）。</p>
+    <p class="hint">共 22 列，拆成「產能」「含IACT產能」兩個獨立區塊，各自 11 列、各自一顆複製鈕，方便貼到不連續的位置。BBT 不計入此區塊。Jackie／Kelly／BPO 系列目前是固定佔位（尚無資料），Patty／Lucy 依③名單裡的主管簡稱自動比對。半天的人「不排除」，但只算 0.5 人力（跟上面 IACT 明細的半天規則不同，這區塊獨立計算）。</p>
     <div class="toolbar">
       <button class="primary" id="btn-generate-callsummary">產出</button>
-      <button class="secondary" id="btn-copy-callsummary">📋 複製數值欄</button>
       <span class="badge" id="callsummary-status"></span>
     </div>
     <div id="callsummary-warnings"></div>
-    <div class="report-wrap" style="max-height:75vh;">
-      <table class="report" id="callsummary-table"></table>
+
+    <div class="flex">
+      <div>
+        <div class="toolbar">
+          <h3 style="margin:0;">產能</h3>
+          <button class="secondary" id="btn-copy-callsummary-produce">📋 複製數值欄</button>
+        </div>
+        <div class="report-wrap" style="max-height:75vh;">
+          <table class="report" id="callsummary-table-produce"></table>
+        </div>
+      </div>
+      <div>
+        <div class="toolbar">
+          <h3 style="margin:0;">含IACT產能</h3>
+          <button class="secondary" id="btn-copy-callsummary-iact">📋 複製數值欄</button>
+        </div>
+        <div class="report-wrap" style="max-height:75vh;">
+          <table class="report" id="callsummary-table-iact"></table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
