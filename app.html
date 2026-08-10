@@ -241,6 +241,7 @@
     <div class="tab" data-tab="result"><span class="nav-icon">📊</span>日報表</div>
     <div class="tab" data-tab="realtime"><span class="nav-icon">⚡</span>即時產能</div>
     <div class="tab" data-tab="dashboard"><span class="nav-icon">🏆</span>產能儀表板</div>
+    <div class="tab" data-tab="iact"><span class="nav-icon">🌐</span>IACT</div>
     <div class="nav-divider"></div>
     <div class="tab" data-tab="about"><span class="nav-icon">ℹ️</span>關於</div>
   </nav>
@@ -274,10 +275,10 @@
 <!-- ① 上傳 -->
 <div class="panel active" id="panel-upload">
   <div class="card">
-    <h2>上傳四份明細檔</h2>
-    <p class="hint">支援 .xlsx / .xls / .csv。可一次拖曳 1~4 個檔案，系統會依檔名/欄位自動判斷是哪一種明細表（可事後手動修正）。</p>
+    <h2>上傳明細檔</h2>
+    <p class="hint">支援 .xlsx / .xls / .csv。核心四份（IC/Chat/Status Log/Hourly）用於①~④的所有報表；第5份 IACT 是選填，只有「IACT」分頁會用到。可一次拖曳多個檔案，系統會依檔名/欄位自動判斷是哪一種明細表（可事後手動修正）。</p>
     <div class="dropzone" id="dropzone">
-      <div>📥 將檔案拖曳到這裡（可一次丟 4 個），或點擊選擇檔案</div>
+      <div>📥 將檔案拖曳到這裡（可一次丟多個），或點擊選擇檔案</div>
       <input type="file" id="dropzone-input" multiple accept=".xlsx,.xls,.csv" style="display:none;">
     </div>
     <div id="detect-results"></div>
@@ -304,6 +305,11 @@
         <input type="file" id="file-hourly" accept=".xlsx,.xls,.csv">
         <div class="filecount" id="count-hourly">尚未上傳</div>
       </div>
+      <div>
+        <h3>⑤ IACT 產量明細（選填，供 IACT 分頁使用）</h3>
+        <input type="file" id="file-iact" accept=".xlsx,.xls,.csv">
+        <div class="filecount" id="count-iact">尚未上傳</div>
+      </div>
     </div>
   </div>
 
@@ -319,6 +325,7 @@
   <div class="card"><h2>Chat 明細欄位對應</h2><div id="map-chat"></div></div>
   <div class="card"><h2>Status Log 欄位對應</h2><div id="map-status"></div></div>
   <div class="card"><h2>Hourly Activity（外撥通數）欄位對應</h2><div id="map-hourly"></div></div>
+  <div class="card"><h2>IACT 產量明細欄位對應</h2><div id="map-iact"></div></div>
   <button class="primary" id="btn-save-mapping">儲存對應（下次上傳同結構檔案將自動套用）</button>
 
   <div class="card next-step-card" style="margin-top:16px;">
@@ -431,6 +438,21 @@
   </div>
 </div>
 
+<!-- IACT -->
+<div class="panel" id="panel-iact">
+  <div class="card">
+    <h2>IACT 產量明細</h2>
+    <p class="hint">結構參考「⚡即時產能」，多一欄「IACT產能」（來源：IACT明細，排除 Channel Type=Internet Call 後的筆數）。通常在當日 18 點使用。整體計算與最終呈現方式之後會再調整，目前是初版顯示。</p>
+    <div class="toolbar">
+      <button class="primary" id="btn-generate-iact">產出 IACT</button>
+      <button class="secondary" id="btn-export-iact-xlsx">匯出 Excel</button>
+      <span class="badge" id="iact-status"></span>
+    </div>
+    <div id="iact-warnings"></div>
+  </div>
+  <div id="iact-output"></div>
+</div>
+
 <!-- 關於 -->
 <div class="panel" id="panel-about">
   <div class="card">
@@ -468,5 +490,6 @@
 <script src="report-daily.js"></script>
 <script src="report-realtime.js"></script>
 <script src="report-dashboard.js"></script>
+<script src="report-iact.js"></script>
 </body>
 </html>
