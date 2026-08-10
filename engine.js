@@ -171,7 +171,7 @@ function guessSourceType(filename, headers){
   if(fn.includes('chat_session')) return 'chat';
   if(fn.includes('historical_status') || fn.includes('status_log')) return 'status';
   if(fn.includes('hourly_activity')) return 'hourly';
-  if(fn.includes('iact') || fn.includes('productivity_detail')) return 'iact';
+  if(fn.includes('iact') || fn.includes('productivity')) return 'iact';
   const h = headers.map(x=>String(x).toLowerCase());
   if(h.some(x=>x.includes('chat owner'))) return 'chat';
   if(h.some(x=>x.includes('sub status'))) return 'status';
