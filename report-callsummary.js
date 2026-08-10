@@ -36,7 +36,8 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
   try{
     if(!state.ic.rows.length){
       wbox.innerHTML = `<div class="warn-box"><strong>尚未上傳 Internet Call 明細</strong>，請先到「①上傳資料」完成上傳。</div>`;
-      document.getElementById('callsummary-table').innerHTML = '';
+      document.getElementById('callsummary-table-produce').innerHTML = '';
+      document.getElementById('callsummary-table-iact').innerHTML = '';
       statusEl.textContent = '尚未上傳資料';
       return;
     }
@@ -63,7 +64,7 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
     const sNonFull = csGroupStats(nonFullAll);
     const sTotal = csGroupStats(all);
 
-    const rows = [
+    const produceRows = [
       ['產能','Call-Jackie', '-'],
       ['產能','Call-Patty', csFmt(sPatty.callAvg)],
       ['產能','Call-Lucy', csFmt(sLucy.callAvg)],
@@ -74,7 +75,9 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
       ['產能','Call -全技能(BPO)', ''],
       ['產能','Call -(非全技能Total)', csFmt(sNonFull.callAvg)],
       ['產能','Call -(全技能Total)', csFmt(sFull.callAvg)],
-      ['產能','Call -(Total)', csFmt(sTotal.callAvg)],
+      ['產能','Call -(Total)', csFmt(sTotal.callAvg)]
+    ];
+    const iactRows = [
       ['含IACT產能','Call-Jackie', '-'],
       ['含IACT產能','Call-Patty', csFmtCombined(sPatty.callAvg, sPatty.iactAvg)],
       ['含IACT產能','Call-Lucy', csFmtCombined(sLucy.callAvg, sLucy.iactAvg)],
@@ -87,13 +90,17 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
       ['含IACT產能','Call -(全技能Total)', csFmtCombined(sFull.callAvg, sFull.iactAvg)],
       ['含IACT產能','Call -(Total)', csFmtCombined(sTotal.callAvg, sTotal.iactAvg)]
     ];
-    lastCallSummaryRows = rows;
+    lastCallSummaryRows = {produce: produceRows, iact: iactRows};
 
-    const tbl = document.getElementById('callsummary-table');
-    const bodyHtml = rows.map(r=>
-      `<tr><td style="text-align:left;">${r[0]}</td><td style="text-align:left;">${r[1]}</td><td>${r[2]||'&nbsp;'}</td></tr>`
-    ).join('');
-    tbl.innerHTML = `<thead><tr><th>分類</th><th>項目</th><th>數值</th></tr></thead><tbody>${bodyHtml}</tbody>`;
+    function renderTable(tblId, rows){
+      const tbl = document.getElementById(tblId);
+      const bodyHtml = rows.map(r=>
+        `<tr><td style="text-align:left;">${r[0]}</td><td style="text-align:left;">${r[1]}</td><td>${r[2]||'&nbsp;'}</td></tr>`
+      ).join('');
+      tbl.innerHTML = `<thead><tr><th>分類</th><th>項目</th><th>數值</th></tr></thead><tbody>${bodyHtml}</tbody>`;
+    }
+    renderTable('callsummary-table-produce', produceRows);
+    renderTable('callsummary-table-iact', iactRows);
 
     let warnHtml = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
     if(!state.iact.rows.length){
@@ -114,18 +121,12 @@ document.getElementById('btn-generate-callsummary').onclick = ()=>{
   }
 };
 
-document.getElementById('btn-copy-callsummary').onclick = async ()=>{
-  const statusEl = document.getElementById('callsummary-status');
-  if(!lastCallSummaryRows){
-    alert('請先按「產出」，才會有資料可以複製。');
-    return;
-  }
-  const text = lastCallSummaryRows.map(r=>r[2]).join('\n');
+async function csCopyRows(rows, statusEl, label){
+  const text = rows.map(r=>r[2]).join('\n');
   try{
     await navigator.clipboard.writeText(text);
-    statusEl.textContent = '已複製 22 個數值到剪貼簿 ✓';
+    statusEl.textContent = `已複製「${label}」${rows.length}個數值到剪貼簿 ✓`;
   }catch(err){
-    // 備援：用隱藏textarea選取複製
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed';
@@ -135,10 +136,21 @@ document.getElementById('btn-copy-callsummary').onclick = async ()=>{
     ta.select();
     try{
       document.execCommand('copy');
-      statusEl.textContent = '已複製 22 個數值到剪貼簿 ✓';
+      statusEl.textContent = `已複製「${label}」${rows.length}個數值到剪貼簿 ✓`;
     }catch(err2){
       statusEl.textContent = '複製失敗，請直接用滑鼠拖曳選取右欄手動複製';
     }
     document.body.removeChild(ta);
   }
+}
+
+document.getElementById('btn-copy-callsummary-produce').onclick = ()=>{
+  const statusEl = document.getElementById('callsummary-status');
+  if(!lastCallSummaryRows){ alert('請先按「產出」，才會有資料可以複製。'); return; }
+  csCopyRows(lastCallSummaryRows.produce, statusEl, '產能');
+};
+document.getElementById('btn-copy-callsummary-iact').onclick = ()=>{
+  const statusEl = document.getElementById('callsummary-status');
+  if(!lastCallSummaryRows){ alert('請先按「產出」，才會有資料可以複製。'); return; }
+  csCopyRows(lastCallSummaryRows.iact, statusEl, '含IACT產能');
 };
