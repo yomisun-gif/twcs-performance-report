@@ -442,7 +442,7 @@
 <div class="panel" id="panel-iact">
   <div class="card">
     <h2>IACT 產量明細</h2>
-    <p class="hint">結構參考「⚡即時產能」，多一欄「IACT產能」（來源：IACT明細，排除 Channel Type=Internet Call 後的筆數）。通常在當日 18 點使用。整體計算與最終呈現方式之後會再調整，目前是初版顯示。</p>
+    <p class="hint">結構參考「⚡即時產能」，多一欄「IACT產能」（來源：IACT明細，排除 Channel Type=Internet Call 後的筆數）。通常在當日 18 點使用。</p>
     <div class="toolbar">
       <button class="primary" id="btn-generate-iact">產出 IACT</button>
       <button class="secondary" id="btn-export-iact-xlsx">匯出 Excel</button>
@@ -451,6 +451,20 @@
     <div id="iact-warnings"></div>
   </div>
   <div id="iact-output"></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>Call 摘要（複製貼上友善格式）</h2>
+    <p class="hint">固定 22 列輸出，方便直接複製最右欄數值貼到內部表單。BBT 不計入此區塊。Jackie／Kelly／BPO 系列目前是固定佔位（尚無資料），Patty／Lucy 依③名單裡的主管簡稱自動比對。半天的人「不排除」，但只算 0.5 人力（跟上面 IACT 明細的半天規則不同，這區塊獨立計算）。</p>
+    <div class="toolbar">
+      <button class="primary" id="btn-generate-callsummary">產出</button>
+      <button class="secondary" id="btn-copy-callsummary">📋 複製數值欄</button>
+      <span class="badge" id="callsummary-status"></span>
+    </div>
+    <div id="callsummary-warnings"></div>
+    <div class="report-wrap" style="max-height:75vh;">
+      <table class="report" id="callsummary-table"></table>
+    </div>
+  </div>
 </div>
 
 <!-- 關於 -->
@@ -491,5 +505,6 @@
 <script src="report-realtime.js"></script>
 <script src="report-dashboard.js"></script>
 <script src="report-iact.js"></script>
+<script src="report-callsummary.js"></script>
 </body>
 </html>
