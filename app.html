@@ -190,6 +190,8 @@
   .rt-empty-note{color:var(--text-secondary);font-size:12px;padding:10px;}
   .cell-alert{background:#FCE4E4 !important;color:#B91C1C !important;font-weight:700;}
   .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
+  table.cs-table .cs-ref-col{display:none;background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:400;}
+  table.cs-table.cs-show-ref .cs-ref-col{display:table-cell;}
   .sl-reason{font-size:11px;color:var(--text-secondary);}
   /* Status Log 篩選檢視：表頭需要不透明背景，捲動時才不會被底下資料穿透 */
   #statuslog-filter-table thead th{background:var(--bg);}
@@ -457,6 +459,7 @@
     <p class="hint">共 22 列，拆成「產能」「含IACT產能」兩個獨立區塊，各自 11 列、各自一顆複製鈕，方便貼到不連續的位置。BBT 不計入此區塊。Jackie／Kelly／BPO 系列目前是固定佔位（尚無資料），Patty／Lucy 依③名單裡的主管簡稱自動比對。半天的人「不排除」，但只算 0.5 人力（跟上面 IACT 明細的半天規則不同，這區塊獨立計算）。</p>
     <div class="toolbar">
       <button class="primary" id="btn-generate-callsummary">產出</button>
+      <button class="secondary" id="btn-toggle-cs-ref">🔍 顯示計算來源</button>
       <span class="badge" id="callsummary-status"></span>
     </div>
     <div id="callsummary-warnings"></div>
@@ -468,7 +471,7 @@
           <button class="secondary" id="btn-copy-callsummary-produce">📋 複製數值欄</button>
         </div>
         <div class="report-wrap" style="max-height:75vh;">
-          <table class="report" id="callsummary-table-produce"></table>
+          <table class="report cs-table" id="callsummary-table-produce"></table>
         </div>
       </div>
       <div>
@@ -477,7 +480,7 @@
           <button class="secondary" id="btn-copy-callsummary-iact">📋 複製數值欄</button>
         </div>
         <div class="report-wrap" style="max-height:75vh;">
-          <table class="report" id="callsummary-table-iact"></table>
+          <table class="report cs-table" id="callsummary-table-iact"></table>
         </div>
       </div>
     </div>
