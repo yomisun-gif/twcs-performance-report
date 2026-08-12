@@ -787,8 +787,11 @@ function computeReport(){
     const g = (code)=> (st[code]?st[code].sec:0);
     const cnt = (code)=> (st[code]?st[code].count:0);
 
-    const acwSec = g('on_case') + g('busy_wrapup');
-    const acw = a.icCount ? acwSec / a.icCount : null;
+    // ACW：只算 online for case（Wrap-up是「線上值機切換前緩衝」，跟處理案件本身無關，不列入）
+    // 分母改成 Call通數+Chat產能（文書時間不管是接電話還是聊Chat都可能產生，兩種產能都要算進去）
+    const acwSec = g('on_case');
+    const totalProduction = (a.icCount||0) + (a.chatCount||0);
+    const acw = totalProduction ? acwSec / totalProduction : null;
     const acd = a.acdCount ? a.acdSum/a.acdCount : null;
     const aht = (acd!==null && acw!==null) ? acd+acw : null;
 
@@ -809,7 +812,7 @@ function computeReport(){
       email:a.email, name:a.name||a.email, batch:a.batch, manager:a.manager,
       icCount: a.icCount||'-',
       acd: a.icCount ? secToHMS(acd) : '-',
-      acw: a.icCount ? (acw!==null?secToHMS(acw):'-') : '-',
+      acw: totalProduction ? (acw!==null?secToHMS(acw):'-') : '-',
       aht: a.icCount ? (aht!==null?secToHMS(aht):'-') : '-',
       icCsat: (a.icGood+a.icBad) ? pct(a.icGood, a.icGood+a.icBad) : '-',
       icCsatRate: a.icCount ? pct(a.icGood+a.icBad+a.icAvg, a.icCount) : '-',
