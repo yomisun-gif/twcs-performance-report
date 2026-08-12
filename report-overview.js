@@ -19,8 +19,6 @@ function ovColumnDefs(){
     {id:'ic_csatrate',   label:'回收率', blk:'ic',       get:r=>r.icCsatRate},
 
     {id:'chat_count',    label:'產能',   blk:'chat',     get:r=>r.chatCount},
-    {id:'chat_aht',      label:'AHT',    blk:'chat',     get:r=>r.chatAht},
-    {id:'chat_csat',     label:'滿意度', blk:'chat',     get:r=>r.chatCsat},
 
     {id:'sp1',           label:'',       blk:'blank',    get:()=>''},
 
@@ -31,7 +29,8 @@ function ovColumnDefs(){
     }},
     {id:'cc_acw',        label:'ACW',    blk:'callchat', get:r=>r.acw},
 
-    {id:'q',             label:'',       blk:'blank',    get:()=>''},
+    {id:'q1',            label:'',       blk:'blank',    get:()=>''},
+    {id:'q2',            label:'',       blk:'blank',    get:()=>''},
 
     {id:'on_ic',         label:'網路電話', blk:'online', get:r=>r.onIC},
     {id:'on_chat',       label:'即時客服', blk:'online', get:r=>r.onChat},
