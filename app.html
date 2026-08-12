@@ -131,9 +131,12 @@
   .blk-total{background:var(--total-color);font-weight:700;color:var(--primary-dark);}
   .blk-callchat{background:var(--busy-color);}
   table.report thead tr:nth-child(1) th.blk-callchat{border-left:3px solid var(--busy-border);}
-  .ov-drag-handle{cursor:grab;color:var(--text-secondary);text-align:center;width:24px;user-select:none;}
-  tr.ov-row.dragging{opacity:0.4;}
-  tr.ov-row.drag-over{border-top:2px solid var(--primary);}
+  .ov-col-header{cursor:grab;position:relative;padding-right:22px;}
+  .ov-col-header .ov-drag-grip{color:var(--text-secondary);margin-right:4px;user-select:none;}
+  .ov-col-header .ov-blank-toggle{position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:11px;padding:2px;}
+  .ov-col-header.dragging{opacity:0.4;}
+  .ov-col-header.drag-over-col{outline:2px solid var(--primary);outline-offset:-2px;}
+  .ov-col-blanked{opacity:0.45;}
   .sub-tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);}
   .sub-tab{background:none;border:none;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;}
   .sub-tab:hover{color:var(--text);}
@@ -387,7 +390,7 @@
 
   <div id="result-view-overview" style="display:none;">
     <div class="card">
-      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能) → 空白欄 → Call+Chat(產能/ACW) → Q(暫留空白)。組別/Batch這裡改成每列各自顯示（不用合併儲存格），這樣才能讓每一列自由拖曳調整順序，拖曳只能在同一位主管底下進行。切回「標準檢視」再切回來，順序會保留；重新按上面的「產出報表」才會重置。</p>
+      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能/AHT/滿意度) → 空白欄 → Call+Chat(產能/ACW) → Q(空白) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動），表頭上的 👁 圖示可以把該欄切換成空白（保留位置但不顯示資料）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您拖曳完的最終順序輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」才會重置。</p>
       <div class="toolbar">
         <button class="secondary" id="btn-reset-overview-order">↺ 還原原始順序</button>
         <button class="secondary" id="btn-export-overview-xlsx">匯出 Excel（依目前順序）</button>
