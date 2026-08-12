@@ -94,6 +94,7 @@ document.getElementById('btn-generate').onclick = ()=>{
   lastRows = rows;
   renderTable(rows);
   fixStickyOffsets();
+  window.__overviewStale = true; // 讓「產能總覽」子分頁知道要重新產出，不沿用舊順序
   const wbox = document.getElementById('warnings');
   wbox.innerHTML = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
   document.getElementById('gen-status').textContent = `已產出 ${rows.length} 位專員資料`;
