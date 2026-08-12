@@ -381,7 +381,7 @@
 
   <div class="sub-tabs">
     <button class="sub-tab active" id="subtab-standard">標準檢視</button>
-    <button class="sub-tab" id="subtab-overview">產能總覽（可拖曳排序）</button>
+    <button class="sub-tab" id="subtab-overview">產能總覽new</button>
   </div>
 
   <div id="result-view-standard">
@@ -390,7 +390,7 @@
 
   <div id="result-view-overview" style="display:none;">
     <div class="card">
-      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能/AHT/滿意度) → 空白欄 → Call+Chat(產能/ACW) → Q(空白) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動），表頭上的 👁 圖示可以把該欄切換成空白（保留位置但不顯示資料）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您拖曳完的最終順序輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」才會重置。</p>
+      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能) → 空白欄 → Call+Chat(產能/ACW) → 兩個空白欄(Q/R) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動），表頭上的 👁 圖示可以把該欄切換成空白（保留位置但不顯示資料）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您拖曳完的最終順序輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」才會重置。</p>
       <div class="toolbar">
         <button class="secondary" id="btn-reset-overview-order">↺ 還原原始順序</button>
         <button class="secondary" id="btn-export-overview-xlsx">匯出 Excel（依目前順序）</button>
