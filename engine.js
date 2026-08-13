@@ -1,7 +1,5 @@
 /* ============================================================
-   engine.js — 核心引擎：上傳/欄位對應/專員名單/主管簡稱 + computeReport()
-   這份檔案負責把四份明細檔 + 名單設定，算成一份標準化的 rows 陣列。
-   不管以後加幾種報表樣板，都是吃這份 rows，這支檔案原則上不用跟著改。
+
    ============================================================ */
 
 /* ============ 儲存層：優先用 Claude artifact 的 window.storage，
@@ -85,7 +83,15 @@ function switchTab(name){
   const titleEl = document.getElementById('page-title');
   if(titleEl) titleEl.textContent = TAB_TITLE[name] || '';
 }
-document.querySelectorAll('.tab').forEach(t=>{ t.onclick = ()=> switchTab(t.dataset.tab); });
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick = ()=> switchTab(t.dataset.tab);
+  t.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      switchTab(t.dataset.tab);
+    }
+  });
+});
 
 /* ============ 深色模式 ============ */
 function updateThemeButton(){
