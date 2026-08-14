@@ -153,17 +153,23 @@ function formatRawCell(v){
   return (v===null || v===undefined || v==='') ? '-' : v;
 }
 
-function populateSubStatusOptions(){
-  const sel = document.getElementById('statuslog-filter-substatus');
+function getUniqueSubStatusValues(){
   const stMap = state.status.map;
-  if(!stMap.sub_status || !state.status.rows.length) return;
-  const current = sel.value;
-  const values = Array.from(new Set(
+  if(!stMap.sub_status || !state.status.rows.length) return [];
+  return Array.from(new Set(
     state.status.rows.map(r=> String(r[stMap.sub_status]||'').trim()).filter(Boolean)
   )).sort();
+}
+
+function populateSubStatusOptions(){
+  const sel = document.getElementById('statuslog-filter-substatus');
+  const values = getUniqueSubStatusValues();
+  if(!values.length) return;
+  const current = sel.value;
   sel.innerHTML = '<option value="">全部 Sub Status</option>' +
     values.map(v=>`<option value="${v}">${v}</option>`).join('');
   if(values.includes(current)) sel.value = current;
+  renderSlColorPickers(values);
 }
 
 // 用③專員名單裡的資料，讓搜尋框可以打姓名（自動建議 + 模糊比對）
@@ -175,51 +181,49 @@ function populateAgentSuggestions(){
   ).join('');
 }
 
-// Sub Status 依所屬分類（線上/忙碌/離開/離線）套色，顏色可由使用者自訂並記住
-const SL_COLOR_DEFAULTS = {online:'#F7F0E3', busy:'#F4F1F9', away:'#F9F0F5', offline:'#EEEFF1'};
-let slColors = Object.assign({}, SL_COLOR_DEFAULTS);
+// Sub Status 底色：每一個實際出現過的 Sub Status 值各自一個顏色，預設白色，
+// 使用者自訂並記住（不再是原本的「線上/忙碌/離開/離線」四大分類）
+const SL_DEFAULT_COLOR = '#FFFFFF';
+let slColors = {}; // 原始Sub Status文字(去頭尾空白) -> hex色碼，沒有就用SL_DEFAULT_COLOR
 
-function subStatusCategory(sub){
-  const s = String(sub||'').toLowerCase().trim();
-  let code = SUBMAP[s];
-  if(!code){
-    const parts = s.split(',').map(x=>x.trim()).filter(Boolean);
-    if(parts.length===2 && parts.includes('online for internet call') && parts.includes('online for chat')) code = 'on_ic_chat_dual';
-  }
-  if(!code) return null;
-  if(code.indexOf('on_')===0) return 'online';
-  if(code.indexOf('busy_')===0) return 'busy';
-  if(code.indexOf('away_')===0) return 'away';
-  if(code==='offline') return 'offline';
-  return null;
+function slColorFor(sub){
+  const key = String(sub||'').trim();
+  return slColors[key] || SL_DEFAULT_COLOR;
+}
+
+function renderSlColorPickers(values){
+  const container = document.getElementById('sl-color-picker-container');
+  if(!container) return;
+  container.innerHTML = values.map(v=>{
+    const safeId = 'sl-color-' + btoa(unescape(encodeURIComponent(v))).replace(/[^a-zA-Z0-9]/g,'');
+    const color = slColorFor(v);
+    return `<label class="sl-color-item" title="${v}">
+      <span style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v}</span>
+      <input type="color" class="sl-color-input" data-sub="${v}" id="${safeId}" value="${color}">
+    </label>`;
+  }).join('');
+  container.querySelectorAll('.sl-color-input').forEach(inp=>{
+    inp.addEventListener('input', async (e)=>{
+      const sub = e.target.dataset.sub;
+      slColors[sub] = e.target.value;
+      await storageSet('sl_sub_colors', JSON.stringify(slColors));
+      if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+    });
+  });
 }
 
 async function loadSlColors(){
   const saved = await storageGet('sl_sub_colors');
   if(saved){
-    try{ slColors = Object.assign({}, SL_COLOR_DEFAULTS, JSON.parse(saved)); }catch(e){}
+    try{ slColors = JSON.parse(saved) || {}; }catch(e){ slColors = {}; }
   }
-  document.getElementById('sl-color-online').value = slColors.online;
-  document.getElementById('sl-color-busy').value = slColors.busy;
-  document.getElementById('sl-color-away').value = slColors.away;
-  document.getElementById('sl-color-offline').value = slColors.offline;
 }
 loadSlColors();
 
-['online','busy','away','offline'].forEach(key=>{
-  document.getElementById('sl-color-'+key).addEventListener('input', async (e)=>{
-    slColors[key] = e.target.value;
-    await storageSet('sl_sub_colors', JSON.stringify(slColors));
-    if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
-  });
-});
 document.getElementById('btn-reset-sl-colors').onclick = async ()=>{
-  slColors = Object.assign({}, SL_COLOR_DEFAULTS);
+  slColors = {};
   await storageSet('sl_sub_colors', JSON.stringify(slColors));
-  document.getElementById('sl-color-online').value = slColors.online;
-  document.getElementById('sl-color-busy').value = slColors.busy;
-  document.getElementById('sl-color-away').value = slColors.away;
-  document.getElementById('sl-color-offline').value = slColors.offline;
+  renderSlColorPickers(getUniqueSubStatusValues());
   if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
 };
 
@@ -265,8 +269,8 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
   const bodyRows = filtered.map(r=>{
     const cls = classifyStatusRow(r, stMap);
     const startCellClass = cls.included ? 'cell-included' : 'cell-alert';
-    const cat = subStatusCategory(r[stMap.sub_status]);
-    const subStyle = cat ? ` style="background:${slColors[cat]};"` : '';
+    const subColor = slColorFor(r[stMap.sub_status]);
+    const subStyle = ` style="background:${subColor};"`;
     const dur = secBetween(r[stMap.start_datetime], r[stMap.end_datetime]);
     const durText = dur !== null ? secToHMS(dur) : '-';
     const reasonText = cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`;
@@ -288,7 +292,7 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
   countEl.textContent = `共 ${filtered.length} 筆（已計入 ${filtered.filter(r=>classifyStatusRow(r,stMap).included).length} 筆）`;
 };
 
-// Status Log 上傳完成後，順便先把 Sub Status 選單填好，不用等按篩選才看得到選項
+// Status Log 上傳完成後，順便先把 Sub Status 選單跟顏色選取器填好，不用等按篩選才看得到
 document.getElementById('file-status').addEventListener('change', ()=> setTimeout(populateSubStatusOptions, 300));
 document.getElementById('dropzone-input').addEventListener('change', ()=> setTimeout(populateSubStatusOptions, 300));
 document.getElementById('dropzone').addEventListener('drop', ()=> setTimeout(populateSubStatusOptions, 300));
