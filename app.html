@@ -414,13 +414,10 @@
       <span class="badge" id="statuslog-filter-count"></span>
     </div>
     <div class="toolbar" style="margin-top:-4px;">
-      <span class="sl-color-label">Sub Status 底色：</span>
-      <label class="sl-color-item">線上<input type="color" id="sl-color-online"></label>
-      <label class="sl-color-item">忙碌<input type="color" id="sl-color-busy"></label>
-      <label class="sl-color-item">離開<input type="color" id="sl-color-away"></label>
-      <label class="sl-color-item">離線<input type="color" id="sl-color-offline"></label>
-      <button class="secondary" id="btn-reset-sl-colors">還原預設色</button>
+      <span class="sl-color-label">Sub Status 底色（依實際資料自動列出，預設白色）：</span>
+      <button class="secondary" id="btn-reset-sl-colors">還原全部白色</button>
     </div>
+    <div class="toolbar" id="sl-color-picker-container" style="margin-top:-4px;flex-wrap:wrap;"></div>
     <div class="report-wrap" style="max-height:55vh;">
       <table class="report" id="statuslog-filter-table"></table>
     </div>
