@@ -112,7 +112,7 @@ function ovRenderTable(rows){
     const cls = `blk-${col.blk} ov-col-header${isToggledBlank ? ' ov-col-blanked' : ''}`;
     const toggleBtn = isBlankType ? '' :
       `<button type="button" class="ov-blank-toggle" data-colid="${colId}" title="切換顯示/空白">${isToggledBlank ? '🚫' : '👁'}</button>`;
-    headHtml += `<th class="${cls}" draggable="true" data-colid="${colId}">
+    headHtml += `<th class="${cls}" draggable="true" data-colid="${colId}" title="${isBlankType ? '空白欄' : OV_BLK_LABEL[col.blk]+' - '+col.label}">
         <span class="ov-drag-grip">⠿</span>
         <span class="ov-col-label">${isBlankType ? '' : col.label}</span>
         <span class="ov-col-actions">
