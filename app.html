@@ -134,9 +134,11 @@
   .blk-total{background:var(--total-color);font-weight:700;color:var(--primary-dark);}
   .blk-callchat{background:var(--busy-color);}
   table.report thead tr:nth-child(1) th.blk-callchat{border-left:3px solid var(--busy-border);}
-  .ov-col-header{cursor:grab;position:relative;padding-right:22px;}
+  .ov-col-header{cursor:grab;position:relative;padding-right:52px;}
   .ov-col-header .ov-drag-grip{color:var(--text-secondary);margin-right:4px;user-select:none;}
-  .ov-col-header .ov-blank-toggle{position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:11px;padding:2px;}
+  .ov-col-header .ov-col-actions{position:absolute;right:2px;top:50%;transform:translateY(-50%);display:flex;gap:1px;}
+  .ov-col-header .ov-col-actions button{background:none;border:none;cursor:pointer;font-size:11px;padding:2px;line-height:1;}
+  .ov-col-header .ov-col-actions button:hover{background:rgba(0,0,0,0.08);border-radius:3px;}
   .ov-col-header.dragging{opacity:0.4;}
   .ov-col-header.drag-over-col{outline:2px solid var(--primary);outline-offset:-2px;}
   .ov-col-blanked{opacity:0.45;}
@@ -393,7 +395,7 @@
 
   <div id="result-view-overview" style="display:none;">
     <div class="card">
-      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能) → 空白欄 → Call+Chat(產能/ACW) → 兩個空白欄(Q/R) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動），表頭上的 👁 圖示可以把該欄切換成空白（保留位置但不顯示資料）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您拖曳完的最終順序輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」才會重置。</p>
+      <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能) → 空白欄 → Call+Chat(產能/ACW) → 兩個空白欄(Q/R) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動）。表頭上有三個小圖示：👁 把該欄切換成空白（保留位置但不顯示資料）、➕ 在這欄後面插入一個新的空白欄、🗑 把這一欄整個移除（後面欄位會往前補上，跟👁不一樣，是真的消失）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您排版完的最終結果輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」、或按「還原原始順序」才會重置。</p>
       <div class="toolbar">
         <button class="secondary" id="btn-reset-overview-order">↺ 還原原始順序</button>
         <button class="secondary" id="btn-export-overview-xlsx">匯出 Excel（依目前順序）</button>
