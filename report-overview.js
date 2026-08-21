@@ -4,6 +4,8 @@
    排序的單位是「欄」，不是「列」：每一欄的表頭都可以拖曳調整順序
    （單欄拖，或同一區塊內連續拖幾次等於整塊搬動），也可以把任一欄
    切換成「空白」（保留位置但不顯示資料，例如Q欄）。
+   這次新增：➕在任一欄後面插入新的空白欄、🗑整欄移除（不是切成
+   空白，是真的消失、後面欄位往前補上）。
    組別/Batch 這裡維持跟標準檢視一樣的合併儲存格（因為拖曳的是欄
    不是列，不會互相衝突）。
    完全獨立成自己一份，不影響 report-daily.js。
@@ -64,12 +66,35 @@ const OV_BLK_LABEL = {ic:'Call', chat:'Chat', callchat:'Call+Chat', online:'線�
 let ovColDefsMap = {};
 ovColumnDefs().forEach(c=> ovColDefsMap[c.id] = c);
 let ovColumnOrder = ovColumnDefs().map(c=>c.id); // 目前欄位順序（可被拖曳改變）
-let ovBlankSet = new Set(); // 使用者手動切成空白的欄位id
+let ovBlankSet = new Set(); // 使用者手動切成空白的欄位id（保留位置，隱藏內容）
 let ovLastRows = null;
+let ovNextBlankId = 1; // 使用者自己新增的空白欄，各自要有唯一id
 
 function ovResetLayout(){
+  ovColDefsMap = {};
+  ovColumnDefs().forEach(c=> ovColDefsMap[c.id] = c);
   ovColumnOrder = ovColumnDefs().map(c=>c.id);
   ovBlankSet = new Set();
+  ovNextBlankId = 1;
+}
+
+// 在 afterColId 這欄後面插入一個新的空白欄（真的新增一欄，不是切換blank）
+function ovInsertBlankAfter(afterColId){
+  const newId = 'custom_blank_' + (ovNextBlankId++);
+  ovColDefsMap[newId] = {id:newId, label:'', blk:'blank', get:()=>''};
+  const idx = ovColumnOrder.indexOf(afterColId);
+  if(idx === -1) ovColumnOrder.push(newId);
+  else ovColumnOrder.splice(idx+1, 0, newId);
+  ovRenderTable(ovLastRows);
+}
+
+// 整欄移除（不是切成空白，是真的消失，後面欄位往前補上）
+function ovRemoveColumn(colId){
+  const idx = ovColumnOrder.indexOf(colId);
+  if(idx === -1) return;
+  ovColumnOrder.splice(idx, 1);
+  ovBlankSet.delete(colId);
+  ovRenderTable(ovLastRows);
 }
 
 function ovRenderTable(rows){
@@ -77,10 +102,11 @@ function ovRenderTable(rows){
   const tbl = document.getElementById('overview-table');
   const dateStr = document.getElementById('report-date').value || '';
 
-  // ---- 表頭：單一列，每一欄各自可拖曳、各自可切換空白 ----
+  // ---- 表頭：單一列，每一欄各自可拖曳、各自可切換空白、各自可插入/移除 ----
   let headHtml = '<tr><th class="idcol id1">組別</th><th class="idcol id2">Batch</th><th class="idcol id3">日期</th><th class="idcol id4">Agent</th>';
   ovColumnOrder.forEach(colId=>{
     const col = ovColDefsMap[colId];
+    if(!col) return;
     const isBlankType = col.blk === 'blank';
     const isToggledBlank = ovBlankSet.has(colId);
     const cls = `blk-${col.blk} ov-col-header${isToggledBlank ? ' ov-col-blanked' : ''}`;
@@ -89,7 +115,11 @@ function ovRenderTable(rows){
     headHtml += `<th class="${cls}" draggable="true" data-colid="${colId}">
         <span class="ov-drag-grip">⠿</span>
         <span class="ov-col-label">${isBlankType ? '' : col.label}</span>
-        ${toggleBtn}
+        <span class="ov-col-actions">
+          ${toggleBtn}
+          <button type="button" class="ov-insert-blank" data-colid="${colId}" title="在這欄後面插入空白欄">➕</button>
+          <button type="button" class="ov-remove-col" data-colid="${colId}" title="移除這一欄">🗑</button>
+        </span>
       </th>`;
   });
   headHtml += '</tr>';
@@ -112,6 +142,7 @@ function ovRenderTable(rows){
       bodyHtml += `<td class="idcol id4">${r.name}</td>`;
       ovColumnOrder.forEach(colId=>{
         const col = ovColDefsMap[colId];
+        if(!col) return;
         const isToggledBlank = ovBlankSet.has(colId);
         const val = (col.blk === 'blank' || isToggledBlank) ? '' : col.get(r);
         bodyHtml += `<td class="blk-${col.blk}">${val}</td>`;
@@ -125,6 +156,7 @@ function ovRenderTable(rows){
   ovFixStickyOffsets();
   ovAttachHeaderDrag();
   ovAttachBlankToggles();
+  ovAttachColumnActions();
 }
 
 function ovFixStickyOffsets(){
@@ -181,6 +213,23 @@ function ovAttachBlankToggles(){
   });
 }
 
+function ovAttachColumnActions(){
+  document.querySelectorAll('.ov-insert-blank').forEach(btn=>{
+    btn.addEventListener('mousedown', (e)=> e.stopPropagation());
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      ovInsertBlankAfter(btn.dataset.colid);
+    });
+  });
+  document.querySelectorAll('.ov-remove-col').forEach(btn=>{
+    btn.addEventListener('mousedown', (e)=> e.stopPropagation());
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      ovRemoveColumn(btn.dataset.colid);
+    });
+  });
+}
+
 function ovGenerate(){
   const statusEl = document.getElementById('overview-status');
   try{
@@ -191,7 +240,7 @@ function ovGenerate(){
     }
     const {rows} = computeReport();
     ovRenderTable(rows);
-    statusEl.textContent = `已產出 ${rows.length} 位專員資料（欄位表頭可拖曳排序，👁可切換空白）`;
+    statusEl.textContent = `已產出 ${rows.length} 位專員資料（表頭可拖曳排序，👁切換空白，➕插入空白欄，🗑移除該欄）`;
     window.__overviewStale = false;
   }catch(err){
     console.error('產能總覽產出失敗：', err);
