@@ -134,10 +134,12 @@
   .blk-total{background:var(--total-color);font-weight:700;color:var(--primary-dark);}
   .blk-callchat{background:var(--busy-color);}
   table.report thead tr:nth-child(1) th.blk-callchat{border-left:3px solid var(--busy-border);}
-  .ov-col-header{cursor:grab;position:relative;padding-right:52px;}
-  .ov-col-header .ov-drag-grip{color:var(--text-secondary);margin-right:4px;user-select:none;}
-  .ov-col-header .ov-col-actions{position:absolute;right:2px;top:50%;transform:translateY(-50%);display:flex;gap:1px;}
-  .ov-col-header .ov-col-actions button{background:none;border:none;cursor:pointer;font-size:11px;padding:2px;line-height:1;}
+  .ov-col-header{cursor:grab;position:relative;padding:4px 4px 3px;min-width:52px;vertical-align:top;}
+  .ov-col-header .ov-drag-grip{display:none;}
+  .ov-col-header .ov-col-label{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .ov-col-header .ov-col-actions{display:flex;justify-content:center;gap:3px;margin-top:2px;height:14px;opacity:0;transition:opacity .12s;}
+  .ov-col-header:hover .ov-col-actions,.ov-col-header:focus-within .ov-col-actions{opacity:1;}
+  .ov-col-header .ov-col-actions button{background:none;border:none;cursor:pointer;font-size:10px;padding:0 1px;line-height:1;}
   .ov-col-header .ov-col-actions button:hover{background:rgba(0,0,0,0.08);border-radius:3px;}
   .ov-col-header.dragging{opacity:0.4;}
   .ov-col-header.drag-over-col{outline:2px solid var(--primary);outline-offset:-2px;}
