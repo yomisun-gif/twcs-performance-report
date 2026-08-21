@@ -1,5 +1,7 @@
 /* ============================================================
-
+   engine.js — 核心引擎：上傳/欄位對應/專員名單/主管簡稱 + computeReport()
+   這份檔案負責把四份明細檔 + 名單設定，算成一份標準化的 rows 陣列。
+   不管以後加幾種報表樣板，都是吃這份 rows，這支檔案原則上不用跟著改。
    ============================================================ */
 
 /* ============ 儲存層：優先用 Claude artifact 的 window.storage，
@@ -332,7 +334,11 @@ function blockHTML(b){
     <table class="agent-table">
       <thead><tr>
         <th style="width:26%;">Email</th><th style="width:16%;">姓名</th>
-        <th>全技能</th><th>BBT</th><th>半天</th><th>計入成績</th><th></th>
+        <th>全技能<br><input type="checkbox" class="ag-selectall" data-col="full" title="全選/取消全選"></th>
+        <th>BBT<br><input type="checkbox" class="ag-selectall" data-col="bbt" title="全選/取消全選"></th>
+        <th>半天<br><input type="checkbox" class="ag-selectall" data-col="half" title="全選/取消全選"></th>
+        <th>計入成績<br><input type="checkbox" class="ag-selectall" data-col="counted" title="全選/取消全選"></th>
+        <th></th>
       </tr></thead>
       <tbody class="agent-tbody">${agentRows}</tbody>
     </table>
@@ -388,6 +394,15 @@ function bindBlockEvents(el){
   el.querySelectorAll('.agent-tbody tr').forEach(row=> bindRowEvents(el, row));
   el.querySelector('.mgr-email').addEventListener('input', updateSummary);
   el.querySelector('.mgr-short').addEventListener('input', updateSummary);
+
+  const colClassMap = {full:'ag-full', bbt:'ag-bbt', half:'ag-half', counted:'ag-counted'};
+  el.querySelectorAll('.ag-selectall').forEach(selAll=>{
+    selAll.addEventListener('change', ()=>{
+      const rowClass = colClassMap[selAll.dataset.col];
+      el.querySelectorAll('.agent-tbody .' + rowClass).forEach(cb=>{ cb.checked = selAll.checked; });
+      updateSummary();
+    });
+  });
 
   el.querySelector('.btn-add-row').onclick = ()=>{
     addAgentRowToBlock(el, defaultAgent('',''));
