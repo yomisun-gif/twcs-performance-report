@@ -208,6 +208,10 @@
   tr.rt-avg-row td{background:var(--primary-tint);font-weight:700;color:var(--primary-dark);}
   .rt-empty-note{color:var(--text-secondary);font-size:12px;padding:10px;}
   .cell-alert{background:#FCE4E4 !important;color:#B91C1C !important;font-weight:700;}
+  .dv-var-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .dv-var-row input[type=text]{width:150px;}
+  .dv-var-row select{max-width:260px;}
+  .dv-var-source-title{font-size:13px;font-weight:700;color:var(--primary-dark);margin:12px 0 4px;}
   .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
   table.cs-table .cs-ref-col{display:none;background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:400;}
   table.cs-table.cs-show-ref .cs-ref-col{display:table-cell;}
@@ -263,6 +267,7 @@
     <div class="tab" data-tab="realtime" tabindex="0" role="button"><span class="nav-icon">⚡</span>即時產能</div>
     <div class="tab" data-tab="dashboard" tabindex="0" role="button"><span class="nav-icon">🏆</span>產能儀表板</div>
     <div class="tab" data-tab="iact" tabindex="0" role="button"><span class="nav-icon">🌐</span>IACT</div>
+    <div class="tab dev-only" data-tab="devvars" tabindex="0" role="button" style="display:none;"><span class="nav-icon">🧪</span>CALL自訂變數(測試)</div>
   </nav>
 </aside>
 <div class="main">
@@ -521,6 +526,34 @@
   </div>
 </div>
 
+<!-- 🧪 隱藏開發功能：CALL自訂變數(測試) -->
+<div class="panel" id="panel-devvars">
+  <div class="card">
+    <h2>🧪 CALL 自訂變數（測試功能，不影響正式報表）</h2>
+    <p class="hint">直接讀取「①上傳資料」已上傳的 IC / Chat / Status Log 明細，不會重新上傳。下方每個變數預設對應現行日報表用的欄位，可以自行改變數名稱、改對應的實際欄位，按「重新計算」後會跟正式日報表的結果並排比對，方便驗證有沒有算對。這裡的任何調整都只存在這個分頁，不會寫回正式的②欄位對應或影響其他任何分頁。</p>
+    <div class="toolbar">
+      <button class="primary" id="btn-devvars-init">載入目前欄位</button>
+      <button class="secondary" id="btn-devvars-reset">↺ 還原成預設(現行邏輯)</button>
+      <button class="primary" id="btn-devvars-run">重新計算並比對</button>
+      <span class="badge" id="devvars-status"></span>
+    </div>
+    <div id="devvars-warnings"></div>
+  </div>
+
+  <div class="card">
+    <h3>變數定義</h3>
+    <div id="devvars-ic-vars"></div>
+    <div id="devvars-chat-vars"></div>
+    <div id="devvars-status-vars"></div>
+  </div>
+
+  <div class="card">
+    <h3>比對結果（自訂變數算出的 vs 正式日報表）</h3>
+    <p class="hint">紅色表示這個人這一欄，兩邊算出來的數字不一樣，理論上全部應該要一致（因為預設變數對應的就是現行邏輯）。</p>
+    <div class="report-wrap"><table class="report" id="devvars-compare-table"></table></div>
+  </div>
+</div>
+
   </div>
 </div>
 </div>
@@ -532,5 +565,6 @@
 <script src="report-dashboard.js"></script>
 <script src="report-iact.js"></script>
 <script src="report-callsummary.js"></script>
+<script src="report-devvars.js"></script>
 </body>
 </html>
