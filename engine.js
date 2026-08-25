@@ -836,7 +836,7 @@ function computeReport(){
       acw: totalProduction ? (acw!==null?secToHMS(acw):'-') : '-',
       aht: a.icCount ? (aht!==null?secToHMS(aht):'-') : '-',
       icCsat: (a.icGood+a.icBad) ? pct(a.icGood, a.icGood+a.icBad) : '-',
-      icCsatRate: a.icCount ? pct(a.icGood+a.icBad+a.icAvg, a.icCount) : '-',
+      icCsatRate: a.icCount ? pct(a.icGood+a.icBad, a.icCount) : '-',
 
       chatCount: a.chatCount||'-',
       chatAht:'-',
