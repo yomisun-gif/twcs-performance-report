@@ -47,6 +47,97 @@ const DV_DEFAULT_VARS = {
 // header 是「實際檔案裡的欄位表頭文字」，不是內部代碼
 let dvVars = {ic:[], chat:[], status:[]};
 
+// ---- Phase 2：篩選規則。預設＝現行邏輯（IC的 Call Status=Missed 排除）----
+// 每條規則：{id, source:'ic'|'chat', varName, operator:'equals'|'not_equals'|'contains', value}
+// 符合規則的整筆資料直接排除，不計入任何計算。Status Log 的跨日/EndTime=0
+// 排除規則性質不同（比較兩個日期，不是欄位比對值），這次不放進來，維持原本 classifyStatusRow 的寫法。
+let dvRuleIdCounter = 1;
+let dvRules = [];
+
+function dvBuildDefaultRules(){
+  dvRuleIdCounter = 1;
+  return [
+    {id: dvRuleIdCounter++, source:'ic', varName:'ic_call_status', operator:'equals', value:'Missed'}
+  ];
+}
+
+function dvRuleMatches(row, rule, varMap){
+  const header = varMap[rule.varName];
+  if(!header) return false; // 變數沒對應到欄位，這條規則視為不生效，不是誤排除全部資料
+  const cellVal = String(row[header]||'').trim().toLowerCase();
+  const ruleVal = String(rule.value||'').trim().toLowerCase();
+  if(rule.operator === 'equals') return cellVal === ruleVal;
+  if(rule.operator === 'not_equals') return cellVal !== ruleVal;
+  if(rule.operator === 'contains') return ruleVal !== '' && cellVal.includes(ruleVal);
+  return false;
+}
+
+// 這一列在該 source 底下，有沒有符合「任何一條」排除規則
+function dvRowExcluded(row, source, varMap){
+  return dvRules.some(rule => rule.source === source && dvRuleMatches(row, rule, varMap));
+}
+
+function dvRenderRuleEditor(){
+  const container = document.getElementById('devvars-rules-list');
+  const srcLabel = {ic:'IC', chat:'Chat'};
+  const opLabel = {equals:'等於', not_equals:'不等於', contains:'包含'};
+  container.innerHTML = dvRules.map(rule=>{
+    const varOptions = (dvVars[rule.source]||[]).map(v=>
+      `<option value="${v.varName}" ${v.varName===rule.varName?'selected':''}>${v.varName}</option>`
+    ).join('');
+    const opOptions = Object.keys(opLabel).map(op=>
+      `<option value="${op}" ${op===rule.operator?'selected':''}>${opLabel[op]}</option>`
+    ).join('');
+    return `<div class="dv-rule-row" data-ruleid="${rule.id}">
+      <select class="dv-rule-source" data-ruleid="${rule.id}">
+        <option value="ic" ${rule.source==='ic'?'selected':''}>IC</option>
+        <option value="chat" ${rule.source==='chat'?'selected':''}>Chat</option>
+      </select>
+      <select class="dv-rule-var" data-ruleid="${rule.id}">${varOptions}</select>
+      <select class="dv-rule-op" data-ruleid="${rule.id}">${opOptions}</select>
+      <input type="text" class="dv-rule-value" data-ruleid="${rule.id}" value="${rule.value||''}" placeholder="比對值">
+      <span class="hint" style="margin:0;">符合就整筆排除</span>
+      <button type="button" class="btn-row-del" data-ruleid="${rule.id}" title="刪除此規則">✕</button>
+    </div>`;
+  }).join('') || '<p class="hint">目前沒有任何篩選規則，所有資料都會被計入。</p>';
+
+  container.querySelectorAll('.dv-rule-source').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const rule = dvRules.find(r=>r.id==sel.dataset.ruleid);
+      rule.source = sel.value;
+      rule.varName = (dvVars[rule.source]||[])[0] ? dvVars[rule.source][0].varName : '';
+      dvRenderRuleEditor();
+    });
+  });
+  container.querySelectorAll('.dv-rule-var').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      dvRules.find(r=>r.id==sel.dataset.ruleid).varName = sel.value;
+    });
+  });
+  container.querySelectorAll('.dv-rule-op').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      dvRules.find(r=>r.id==sel.dataset.ruleid).operator = sel.value;
+    });
+  });
+  container.querySelectorAll('.dv-rule-value').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      dvRules.find(r=>r.id==inp.dataset.ruleid).value = inp.value;
+    });
+  });
+  container.querySelectorAll('.btn-row-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      dvRules = dvRules.filter(r=>r.id != btn.dataset.ruleid);
+      dvRenderRuleEditor();
+    });
+  });
+}
+
+document.getElementById('btn-devvars-add-rule').onclick = ()=>{
+  const defaultVar = (dvVars.ic||[])[0] ? dvVars.ic[0].varName : '';
+  dvRules.push({id: dvRuleIdCounter++, source:'ic', varName: defaultVar, operator:'equals', value:''});
+  dvRenderRuleEditor();
+};
+
 function dvBuildDefault(){
   const out = {};
   ['ic','chat','status'].forEach(src=>{
@@ -60,14 +151,18 @@ function dvBuildDefault(){
 
 document.getElementById('btn-devvars-init').onclick = ()=>{
   dvVars = dvBuildDefault();
+  dvRules = dvBuildDefaultRules();
   dvRenderVarEditors();
+  dvRenderRuleEditor();
   document.getElementById('devvars-status').textContent = '已載入目前①上傳資料的欄位（預設對應現行邏輯）';
 };
 
 document.getElementById('btn-devvars-reset').onclick = ()=>{
   dvVars = dvBuildDefault();
+  dvRules = dvBuildDefaultRules();
   dvRenderVarEditors();
-  document.getElementById('devvars-status').textContent = '已還原成預設值（現行邏輯對應的欄位）';
+  dvRenderRuleEditor();
+  document.getElementById('devvars-status').textContent = '已還原成預設值（現行邏輯對應的欄位與規則）';
 };
 
 function dvRenderVarEditors(){
@@ -124,12 +219,11 @@ function dvComputeWithVars(){
     return agents[e];
   }
 
-  // IC：Call Status=Missed 排除，其餘比照現行邏輯
+  // IC：套用「篩選規則」（預設＝Call Status=Missed排除），其餘比照現行邏輯
   state.ic.rows.forEach(r=>{
     const e = String(r[icMap.ic_email]||'').toLowerCase().trim();
     if(!e) return;
-    const callStatus = String(r[icMap.ic_call_status]||'').trim().toLowerCase();
-    if(callStatus === 'missed') return;
+    if(dvRowExcluded(r, 'ic', icMap)) return;
     const a = ensure(e);
     a.icCount++;
     if(isYes(r[icMap.ic_is_answered])){
@@ -141,10 +235,11 @@ function dvComputeWithVars(){
     else if(/bad/i.test(csat)) a.icBad++;
   });
 
-  // Chat：無排除規則，CSAT完全比對
+  // Chat：套用「篩選規則」（預設＝空，沿用現行邏輯無排除），CSAT完全比對
   state.chat.rows.forEach(r=>{
     const e = String(r[chatMap.chat_owner]||'').toLowerCase().trim();
     if(!e) return;
+    if(dvRowExcluded(r, 'chat', chatMap)) return;
     const a = ensure(e);
     a.chatCount++;
     const csat = String(r[chatMap.chat_csat]||'').trim().toLowerCase();
