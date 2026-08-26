@@ -212,6 +212,10 @@
   .dv-var-row input[type=text]{width:150px;}
   .dv-var-row select{max-width:260px;}
   .dv-var-source-title{font-size:13px;font-weight:700;color:var(--primary-dark);margin:12px 0 4px;}
+  .dv-rule-row{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .dv-rule-row select{max-width:160px;}
+  .dv-rule-row input[type=text]{width:130px;}
+  .dv-rule-row .btn-row-del{margin-left:auto;}
   .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
   table.cs-table .cs-ref-col{display:none;background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:400;}
   table.cs-table.cs-show-ref .cs-ref-col{display:table-cell;}
@@ -545,6 +549,15 @@
     <div id="devvars-ic-vars"></div>
     <div id="devvars-chat-vars"></div>
     <div id="devvars-status-vars"></div>
+  </div>
+
+  <div class="card">
+    <h3>篩選規則（符合就整筆排除，Status Log 的跨日/EndTime=0 規則不在這裡，維持原本寫法）</h3>
+    <p class="hint">預設規則＝現行邏輯（IC 的 Call Status=Missed 排除）。可以改比對的值、新增規則（例如幫 Chat 也加一條排除）、刪除規則。只支援 IC／Chat 兩個來源，比對方式：等於／不等於／包含（都不分大小寫、去除前後空白）。</p>
+    <div id="devvars-rules-list"></div>
+    <div class="toolbar">
+      <button class="secondary" id="btn-devvars-add-rule">+ 新增規則</button>
+    </div>
   </div>
 
   <div class="card">
