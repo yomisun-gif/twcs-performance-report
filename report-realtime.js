@@ -17,22 +17,18 @@ function pctRT(fraction){
 }
 function numOrDash(n){ return (n===null || n===undefined) ? '-' : n.toFixed(1); }
 
-// ---- 條件式格式門檻 ----
-const CSAT_ALERT_THRESHOLD = 0.97;      // 滿意度 < 97% 標紅
-const ONCASE_ALERT_THRESHOLD_SEC = 5400; // 文書 >= 1/16天(1:30:00) 標紅
-
+const CSAT_ALERT_THRESHOLD = 0.97;
+const ONCASE_ALERT_THRESHOLD_SEC = 5400;
 function csatCellClass(fraction){
   return (fraction !== null && fraction < CSAT_ALERT_THRESHOLD) ? ' class="cell-alert"' : '';
 }
 function onCaseCellClass(sec){
   return (sec >= ONCASE_ALERT_THRESHOLD_SEC) ? ' class="cell-alert"' : '';
 }
-// 產能低於基準值就標紅：要求 >0（有出勤）且 < 基準
 function belowAvgCellClass(value, benchmark){
   return (value > 0 && benchmark !== null && value < benchmark) ? ' class="cell-alert"' : '';
 }
 
-// ---- 主管識別色（低飽和度，各主管一個顏色，深色模式另有一套） ----
 const MGR_PALETTE = [
   {light:{bg:'#E5EEF5',text:'#25597E'}, dark:{bg:'#273B49',text:'#81B5DA'}},
   {light:{bg:'#E5F5ED',text:'#257E52'}, dark:{bg:'#274938',text:'#81DAAD'}},
@@ -49,7 +45,6 @@ function mgrColor(index){
   return isDark ? pair.dark : pair.light;
 }
 
-// 把 buildRawAgentStats() 的原始 agents 轉成這份報表要用的精簡欄位
 function extractRealtimeAgent(email, a){
   const onCaseSec = (a.status && a.status.on_case) ? a.status.on_case.sec : 0;
   return {
@@ -62,13 +57,6 @@ function extractRealtimeAgent(email, a){
   };
 }
 
-// 依技能分類彙總：回傳 { orgSummary, managers: [{managerShort, groupAvg, agents}] }
-// 每個指標(Call均/Chat均/Total均/文書均)各自有獨立的分母，不是共用同一個人數：
-//   Call均  分母 = Call>0 的人
-//   Chat均  分母 = Chat>0 的人
-//   Total均 分母 = (Call+Chat)>0 的人（=當日有上班）
-//   文書均  分母 = (Call+Chat)>0 的人（有上班就算，不要求文書>0；文書=0且沒上班=休假，不算）
-// 半天的人一律完全排除於所有平均計算之外（不是打折），但仍會顯示在名單列表裡當參考。
 function summarizeSkillGroup(list){
   const byManager = {};
   const managerOrder = [];
@@ -84,12 +72,11 @@ function summarizeSkillGroup(list){
   }
 
   function computeGroupStats(group){
-    const eligible = group.filter(a => !a.halfDay); // 半天完全不參與任何平均計算
-
+    const eligible = group.filter(a => !a.halfDay);
     const callList = eligible.filter(a => a.icCount > 0);
     const chatList = eligible.filter(a => a.chatCount > 0);
     const totalList = eligible.filter(a => (a.icCount + a.chatCount) > 0);
-    const onCaseList = totalList; // 文書均分母跟Total均一樣：有上班就算
+    const onCaseList = totalList;
 
     const callCsatList = callList.filter(a => (a.icGood + a.icBad) > 0);
     const chatCsatList = chatList.filter(a => (a.chatGood + a.chatBad) > 0);
@@ -104,7 +91,6 @@ function summarizeSkillGroup(list){
     };
   }
 
-  // 主管排序：保留在「③專員名單」設定的區塊順序，不做字母排序
   const managers = managerOrder.map(key=>({
     managerShort: key,
     agents: byManager[key],
@@ -118,8 +104,6 @@ function summarizeSkillGroup(list){
 function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
   const totalCols = managers.length * 7;
 
-  // 統計摘要整合進同一張表格最上面（不再是表格外的獨立區塊），
-  // 這樣複製整張表到 Google Sheets 時，摘要資料也會一起橫向貼過去
   const summaryLabelRow = '<tr class="rt-summary-row">' +
     '<th>Day</th><th>Call產能(均)</th><th>Chat產能(均)</th><th>Total產能(均)</th><th>Call滿意度(均)</th><th>Chat滿意度(均)</th><th>文書(均)</th><th>報表時間</th>' +
     (totalCols>8 ? `<th colspan="${totalCols-8}"></th>` : '') +
@@ -165,8 +149,6 @@ function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
     managers.forEach((mgr, mi)=>{
       const a = mgr.agents[idx];
       if(!a){
-        // 用7個各自獨立的空白儲存格補空，不用colspan——
-        // colspan會讓該列的欄位數跟其他列不一致，導致對齊規則跑掉
         bodyRows += '<td class="rt-blank-cell"></td>'.repeat(7);
         return;
       }
@@ -179,7 +161,7 @@ function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
         <td${csatCellClass(callFrac)}>${callFrac!==null?pctRT(callFrac):'-'}</td>
         <td>${a.chatCount}</td>
         <td>${chatFrac!==null?pctRT(chatFrac):'-'}</td>
-        <td${belowAvgCellClass(total, mgr.groupAvg.totalAvg)}>${total}</td>
+        <td${belowAvgCellClass(total, orgSummary.totalAvg)}>${total}</td>
         <td${onCaseCellClass(a.onCaseSec)}>${secToHMSRT(a.onCaseSec)}</td>`;
     });
     bodyRows += '</tr>';
@@ -221,9 +203,8 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
     const timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 
     const all = emails.map(e=> extractRealtimeAgent(e, agents[e]))
-      .filter(a=> a.countedInScore); // 計入成績有勾就列出來，包含當天0產能的人（顯示0）
+      .filter(a=> a.countedInScore);
 
-    // BBT 優先：勾選 BBT 的人只會出現在 BBT 區塊，不會同時出現在全技能/非全技能
     const bbtList = all.filter(a=>a.bbt);
     const fullSkillList = all.filter(a=>!a.bbt && a.fullSkill);
     const nonFullSkillList = all.filter(a=>!a.bbt && !a.fullSkill);
@@ -252,7 +233,6 @@ document.getElementById('btn-generate-realtime').onclick = ()=>{
   }
 };
 
-/* ============ 匯出 ============ */
 function buildRealtimeExportRows(){
   const rows = [];
   function addSection(title, data){
