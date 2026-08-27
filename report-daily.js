@@ -7,23 +7,42 @@
 
 /* ============ 報表渲染 ============ */
 const COLS = [
-  {k:'icCount',l:'產能',blk:'ic'}, {k:'aht',l:'AHT',blk:'ic'}, {k:'acd',l:'ACD',blk:'ic'}, {k:'acw',l:'ACW',blk:'ic'},
-  {k:'icCsat',l:'滿意度',blk:'ic'}, {k:'icCsatRate',l:'回收率',blk:'ic'},
+  {k:'icCount',l:'產能',blk:'ic',tip:'排除 Call Status=Missed 後的通數（依 Last Agent Email 分組計數）'},
+  {k:'aht',l:'AHT',blk:'ic',tip:'AHT = ACD + ACW'},
+  {k:'acd',l:'ACD',blk:'ic',tip:'已接聽通話（Is Answered=Yes）的 (Call End Time − Last Routed to Agent Time) 平均秒數'},
+  {k:'acw',l:'ACW',blk:'ic',tip:'ACW = online for case 總秒數 ÷ (Call通數+Chat產能)，Wrap-up 不計入分子'},
+  {k:'icCsat',l:'滿意度',blk:'ic',tip:'Good ÷ (Good+Bad)，CSAT 欄位模糊比對（文字包含good/bad即算）'},
+  {k:'icCsatRate',l:'回收率',blk:'ic',tip:'(Good+Bad) ÷ 通數，分母只有Call產能，不含Chat，Average不計入分子'},
 
-  {k:'chatCount',l:'產能',blk:'chat'}, {k:'chatAht',l:'AHT',blk:'chat'}, {k:'chatCsat',l:'滿意度',blk:'chat'},
+  {k:'chatCount',l:'產能',blk:'chat',tip:'依 Chat Owner 分組計數，目前無排除規則'},
+  {k:'chatAht',l:'AHT',blk:'chat',tip:'固定顯示「-」，目前沒有實際計算來源'},
+  {k:'chatCsat',l:'滿意度',blk:'chat',tip:'Good ÷ (Good+Bad)，CSAT Level 欄位完全比對（需完全等於good/bad，跟Call的模糊比對不同）'},
 
-  {k:'onIC',l:'網路電話',blk:'online'}, {k:'onChat',l:'即時客服',blk:'online'}, {k:'onICChat',l:'雙渠道',blk:'online'},
-  {k:'onCall',l:'電話',blk:'online'}, {k:'onCase',l:'文書',blk:'online'},
+  {k:'onIC',l:'網路電話',blk:'online',tip:'Sub Status=「online for internet call」 的總秒數'},
+  {k:'onChat',l:'即時客服',blk:'online',tip:'Sub Status=「online for chat」 的總秒數'},
+  {k:'onICChat',l:'雙渠道',blk:'online',tip:'Sub Status同時＝「online for chat,online for internet call」（雙渠道同時上線）的總秒數，不是onIC+onChat相加'},
+  {k:'onCall',l:'電話',blk:'online',tip:'Sub Status=「online for call」 的總秒數'},
+  {k:'onCase',l:'文書',blk:'online',tip:'Sub Status=「online for case」 的總秒數'},
 
-  {k:'busyWrap',l:'話後',blk:'busy'}, {k:'busyTrain',l:'訓練',blk:'busy'}, {k:'busyMeet',l:'會議',blk:'busy'},
-  {k:'busyCoach',l:'輔導',blk:'busy'}, {k:'busyEsc',l:'轉單諮詢',blk:'busy'}, {k:'busyOut',l:'外撥',blk:'busy'}, {k:'busyOutCount',l:'外撥(通數)',blk:'busy'},
+  {k:'busyWrap',l:'話後',blk:'busy',tip:'Sub Status=「busy with wrapup」 的總秒數'},
+  {k:'busyTrain',l:'訓練',blk:'busy',tip:'Sub Status=「busy with training」 的總秒數'},
+  {k:'busyMeet',l:'會議',blk:'busy',tip:'Sub Status=「busy with meeting」 的總秒數'},
+  {k:'busyCoach',l:'輔導',blk:'busy',tip:'Sub Status=「busy with coaching」 的總秒數'},
+  {k:'busyEsc',l:'轉單諮詢',blk:'busy',tip:'Sub Status=「busy with escalation」 的總秒數'},
+  {k:'busyOut',l:'外撥',blk:'busy',tip:'Sub Status=「busy with outbound」 的總秒數'},
+  {k:'busyOutCount',l:'外撥(通數)',blk:'busy',tip:'來自 Hourly Activity 明細，依 Email 加總 Call Outbound(in number)，跟Status Log無關'},
 
-  {k:'awayBreak',l:'休息',blk:'away'}, {k:'awayMeal',l:'用餐',blk:'away'}, {k:'awayBreakMeal',l:'休息+用餐',blk:'away'},
-  {k:'awayConsult',l:'諮詢',blk:'away'}, {k:'awayPersonal',l:'其他',blk:'away'},
+  {k:'awayBreak',l:'休息',blk:'away',tip:'Sub Status=「away for short break」 的總秒數'},
+  {k:'awayMeal',l:'用餐',blk:'away',tip:'Sub Status=「away for meal」 的總秒數'},
+  {k:'awayBreakMeal',l:'休息+用餐',blk:'away',tip:'休息秒數 + 用餐秒數 直接相加'},
+  {k:'awayConsult',l:'諮詢',blk:'away',tip:'Sub Status=「away for consult」 的總秒數'},
+  {k:'awayPersonal',l:'其他',blk:'away',tip:'Sub Status=「away for personal break」 的總秒數'},
 
-  {k:'offlineTime',l:'離線(時間)',blk:'offline'}, {k:'offlineCount',l:'離線(次數)',blk:'offline'},
+  {k:'offlineTime',l:'離線(時間)',blk:'offline',tip:'Sub Status=「offline」 的總秒數'},
+  {k:'offlineCount',l:'離線(次數)',blk:'offline',tip:'Sub Status=「offline」 的筆數（排除跨日/EndTime=0後）'},
 
-  {k:'totalA',l:'Online Busy',blk:'total'}, {k:'totalB',l:'Online Busy Away',blk:'total'}
+  {k:'totalA',l:'Online Busy',blk:'total',tip:'網路電話+即時客服+雙渠道+電話+文書+話後+外撥'},
+  {k:'totalB',l:'Online Busy Away',blk:'total',tip:'Online Busy(totalA) 再加上：訓練+會議+輔導+轉單諮詢+休息+用餐+諮詢+其他'}
 ];
 const BLK_LABEL = {ic:'Call', chat:'Chat', online:'線上 Online', busy:'忙碌 Busy', away:'離開 Away', offline:'離線 Offline', total:'合計'};
 
@@ -42,7 +61,7 @@ function renderTable(rows){
   blkSeq.forEach(b=> h1 += `<th class="blk-${b.blk}" colspan="${b.span}">${BLK_LABEL[b.blk]}</th>`);
   h1 += '</tr>';
   let h2 = '<tr>';
-  COLS.forEach(c=> h2 += `<th class="blk-${c.blk}">${c.l}</th>`);
+  COLS.forEach(c=> h2 += `<th class="blk-${c.blk}" title="${c.tip||''}">${c.l}</th>`);
   h2 += '</tr>';
 
   const dateStr = document.getElementById('report-date').value || '';
