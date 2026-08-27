@@ -126,7 +126,13 @@ function renderMergedManagersTable(managers, orgSummary, dateStr, timeStr){
 
   let h2 = '<tr>';
   managers.forEach(()=>{
-    h2 += '<th>姓名</th><th>Call產能</th><th>Call滿意度</th><th>Chat產能</th><th>Chat滿意度</th><th>Total產能</th><th>文書</th>';
+    h2 += `<th>姓名</th>
+      <th title="Call>0的人才算，半天完全排除">Call產能</th>
+      <th title="Good÷(Good+Bad)，分母是「Call>0的人」，低於97%會標紅">Call滿意度</th>
+      <th title="Chat>0的人才算，半天完全排除">Chat產能</th>
+      <th title="Good÷(Good+Bad)，分母是「Chat>0的人」">Chat滿意度</th>
+      <th title="(Call+Chat)>0的人才算，即「當日有上班」的人；半天完全排除，不是打折。低於全隊Total產能均會標紅">Total產能</th>
+      <th title="有上班(Call+Chat>0)就算，不要求文書>0；文書=0且沒上班(休假)不算。≥1:30:00會標紅">文書</th>`;
   });
   h2 += '</tr>';
 
