@@ -14,13 +14,13 @@
 // ---- 欄位定義：每一欄一個唯一id、顯示名稱、所屬區塊(決定顏色)、怎麼從row取值 ----
 function ovColumnDefs(){
   return [
-    {id:'ic_count',      label:'產能',   blk:'ic',       get:r=>r.icCount},
-    {id:'ic_aht',        label:'AHT',    blk:'ic',       get:r=>r.aht},
-    {id:'ic_acd',        label:'ACD',    blk:'ic',       get:r=>r.acd},
-    {id:'ic_csat',       label:'滿意度', blk:'ic',       get:r=>r.icCsat},
-    {id:'ic_csatrate',   label:'回收率', blk:'ic',       get:r=>r.icCsatRate},
+    {id:'ic_count',      label:'產能',   blk:'ic',       get:r=>r.icCount, tip:'排除 Call Status=Missed 後的通數（依 Last Agent Email 分組計數）'},
+    {id:'ic_aht',        label:'AHT',    blk:'ic',       get:r=>r.aht, tip:'AHT = ACD + ACW'},
+    {id:'ic_acd',        label:'ACD',    blk:'ic',       get:r=>r.acd, tip:'已接聽通話（Is Answered=Yes）的 (Call End Time − Last Routed to Agent Time) 平均秒數'},
+    {id:'ic_csat',       label:'滿意度', blk:'ic',       get:r=>r.icCsat, tip:'Good ÷ (Good+Bad)，CSAT 欄位模糊比對（文字包含good/bad即算）'},
+    {id:'ic_csatrate',   label:'回收率', blk:'ic',       get:r=>r.icCsatRate, tip:'(Good+Bad) ÷ 通數，分母只有Call產能，不含Chat，Average不計入分子'},
 
-    {id:'chat_count',    label:'產能',   blk:'chat',     get:r=>r.chatCount},
+    {id:'chat_count',    label:'產能',   blk:'chat',     get:r=>r.chatCount, tip:'依 Chat Owner 分組計數，目前無排除規則'},
 
     {id:'sp1',           label:'',       blk:'blank',    get:()=>''},
 
@@ -28,37 +28,37 @@ function ovColumnDefs(){
       const ic = typeof r.icCount==='number' ? r.icCount : 0;
       const ct = typeof r.chatCount==='number' ? r.chatCount : 0;
       return (ic || ct) ? (ic+ct) : '-';
-    }},
-    {id:'cc_acw',        label:'ACW',    blk:'callchat', get:r=>r.acw},
+    }, tip:'Call產能 + Chat產能'},
+    {id:'cc_acw',        label:'ACW',    blk:'callchat', get:r=>r.acw, tip:'跟左邊Call區塊的ACW是同一個數字：online for case 總秒數 ÷ (Call通數+Chat產能)'},
 
     {id:'q1',            label:'',       blk:'blank',    get:()=>''},
     {id:'q2',            label:'',       blk:'blank',    get:()=>''},
 
-    {id:'on_ic',         label:'網路電話', blk:'online', get:r=>r.onIC},
-    {id:'on_chat',       label:'即時客服', blk:'online', get:r=>r.onChat},
-    {id:'on_icchat',     label:'雙渠道',   blk:'online', get:r=>r.onICChat},
-    {id:'on_call',       label:'電話',     blk:'online', get:r=>r.onCall},
-    {id:'on_case',       label:'文書',     blk:'online', get:r=>r.onCase},
+    {id:'on_ic',         label:'網路電話', blk:'online', get:r=>r.onIC, tip:'Sub Status＝online for internet call 的總秒數'},
+    {id:'on_chat',       label:'即時客服', blk:'online', get:r=>r.onChat, tip:'Sub Status＝online for chat 的總秒數'},
+    {id:'on_icchat',     label:'雙渠道',   blk:'online', get:r=>r.onICChat, tip:'Sub Status同時＝online for chat,online for internet call（雙渠道同時上線）的總秒數，不是onIC+onChat相加'},
+    {id:'on_call',       label:'電話',     blk:'online', get:r=>r.onCall, tip:'Sub Status＝online for call 的總秒數'},
+    {id:'on_case',       label:'文書',     blk:'online', get:r=>r.onCase, tip:'Sub Status＝online for case 的總秒數'},
 
-    {id:'busy_wrap',     label:'話後',     blk:'busy', get:r=>r.busyWrap},
-    {id:'busy_train',    label:'訓練',     blk:'busy', get:r=>r.busyTrain},
-    {id:'busy_meet',     label:'會議',     blk:'busy', get:r=>r.busyMeet},
-    {id:'busy_coach',    label:'輔導',     blk:'busy', get:r=>r.busyCoach},
-    {id:'busy_esc',      label:'轉單諮詢', blk:'busy', get:r=>r.busyEsc},
-    {id:'busy_out',      label:'外撥',     blk:'busy', get:r=>r.busyOut},
-    {id:'busy_outcount', label:'外撥(通數)', blk:'busy', get:r=>r.busyOutCount},
+    {id:'busy_wrap',     label:'話後',     blk:'busy', get:r=>r.busyWrap, tip:'Sub Status＝busy with wrapup 的總秒數'},
+    {id:'busy_train',    label:'訓練',     blk:'busy', get:r=>r.busyTrain, tip:'Sub Status＝busy with training 的總秒數'},
+    {id:'busy_meet',     label:'會議',     blk:'busy', get:r=>r.busyMeet, tip:'Sub Status＝busy with meeting 的總秒數'},
+    {id:'busy_coach',    label:'輔導',     blk:'busy', get:r=>r.busyCoach, tip:'Sub Status＝busy with coaching 的總秒數'},
+    {id:'busy_esc',      label:'轉單諮詢', blk:'busy', get:r=>r.busyEsc, tip:'Sub Status＝busy with escalation 的總秒數'},
+    {id:'busy_out',      label:'外撥',     blk:'busy', get:r=>r.busyOut, tip:'Sub Status＝busy with outbound 的總秒數'},
+    {id:'busy_outcount', label:'外撥(通數)', blk:'busy', get:r=>r.busyOutCount, tip:'來自 Hourly Activity 明細，依 Email 加總 Call Outbound(in number)'},
 
-    {id:'away_break',    label:'休息',     blk:'away', get:r=>r.awayBreak},
-    {id:'away_meal',     label:'用餐',     blk:'away', get:r=>r.awayMeal},
-    {id:'away_breakmeal',label:'休息+用餐', blk:'away', get:r=>r.awayBreakMeal},
-    {id:'away_consult',  label:'諮詢',     blk:'away', get:r=>r.awayConsult},
-    {id:'away_personal', label:'其他',     blk:'away', get:r=>r.awayPersonal},
+    {id:'away_break',    label:'休息',     blk:'away', get:r=>r.awayBreak, tip:'Sub Status＝away for short break 的總秒數'},
+    {id:'away_meal',     label:'用餐',     blk:'away', get:r=>r.awayMeal, tip:'Sub Status＝away for meal 的總秒數'},
+    {id:'away_breakmeal',label:'休息+用餐', blk:'away', get:r=>r.awayBreakMeal, tip:'休息秒數 + 用餐秒數 直接相加'},
+    {id:'away_consult',  label:'諮詢',     blk:'away', get:r=>r.awayConsult, tip:'Sub Status＝away for consult 的總秒數'},
+    {id:'away_personal', label:'其他',     blk:'away', get:r=>r.awayPersonal, tip:'Sub Status＝away for personal break 的總秒數'},
 
-    {id:'offline_time',  label:'離線(時間)', blk:'offline', get:r=>r.offlineTime},
-    {id:'offline_count', label:'離線(次數)', blk:'offline', get:r=>r.offlineCount},
+    {id:'offline_time',  label:'離線(時間)', blk:'offline', get:r=>r.offlineTime, tip:'Sub Status＝offline 的總秒數'},
+    {id:'offline_count', label:'離線(次數)', blk:'offline', get:r=>r.offlineCount, tip:'Sub Status＝offline 的筆數（排除跨日/EndTime=0後）'},
 
-    {id:'total_a',       label:'Online Busy',      blk:'total', get:r=>r.totalA},
-    {id:'total_b',       label:'Online Busy Away', blk:'total', get:r=>r.totalB}
+    {id:'total_a',       label:'Online Busy',      blk:'total', get:r=>r.totalA, tip:'網路電話+即時客服+雙渠道+電話+文書+話後+外撥'},
+    {id:'total_b',       label:'Online Busy Away', blk:'total', get:r=>r.totalB, tip:'Online Busy(totalA) 再加上：訓練+會議+輔導+轉單諮詢+休息+用餐+諮詢+其他'}
   ];
 }
 const OV_BLK_LABEL = {ic:'Call', chat:'Chat', callchat:'Call+Chat', online:'線上 Online', busy:'忙碌 Busy', away:'離開 Away', offline:'離線 Offline', total:'合計', blank:''};
@@ -112,7 +112,7 @@ function ovRenderTable(rows){
     const cls = `blk-${col.blk} ov-col-header${isToggledBlank ? ' ov-col-blanked' : ''}`;
     const toggleBtn = isBlankType ? '' :
       `<button type="button" class="ov-blank-toggle" data-colid="${colId}" title="切換顯示/空白">${isToggledBlank ? '🚫' : '👁'}</button>`;
-    headHtml += `<th class="${cls}" draggable="true" data-colid="${colId}" title="${isBlankType ? '空白欄' : OV_BLK_LABEL[col.blk]+' - '+col.label}">
+    headHtml += `<th class="${cls}" draggable="true" data-colid="${colId}" title="${isBlankType ? '空白欄' : OV_BLK_LABEL[col.blk]+' - '+col.label+(col.tip?'：'+col.tip:'')}">
         <span class="ov-drag-grip">⠿</span>
         <span class="ov-col-label">${isBlankType ? '' : col.label}</span>
         <span class="ov-col-actions">
