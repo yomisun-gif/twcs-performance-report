@@ -300,3 +300,102 @@ document.getElementById('btn-export-iact-xlsx').onclick = ()=>{
   const fname = `IACT_${lastIactData.dateStr.replace('/','-')}_${lastIactData.timeStr.replace(':','')}.xlsx`;
   XLSX.writeFile(wb, fname);
 };
+
+/* ============================================================
+   支援名單（EMAIL/CHAT組臨時支援）
+   不進③專員名單，直接用 Email 算 Call/Chat/IACT 產能，
+   跟上面 IACT 報表同一套篩選規則（Call排除Missed、IACT排除Internet Call），
+   但不透過 buildRawAgentStats()（該函式的 iactCount 只補給③名單裡的人），
+   改成直接掃描三份原始明細，避免非③名單的人抓不到 IACT 數字。
+   ============================================================ */
+
+function iactParseSupportList(text){
+  return text.split('\n')
+    .map(line=>line.trim())
+    .filter(Boolean)
+    .map(line=>{
+      const parts = line.split(',').map(s=>s.trim());
+      const email = (parts[1] || parts[0] || '').toLowerCase();
+      const name = parts[1] ? parts[0] : email;
+      return {name: name || email, email};
+    })
+    .filter(p=>p.email);
+}
+
+function iactComputeSupportAgent(email){
+  const icMap = state.ic.map, chatMap = state.chat.map, iactMap = state.iact.map;
+  const e = email.toLowerCase().trim();
+
+  let icCount = 0;
+  state.ic.rows.forEach(r=>{
+    if(String(r[icMap.last_agent_email]||'').toLowerCase().trim() !== e) return;
+    if(String(r[icMap.call_status]||'').trim().toLowerCase() === 'missed') return;
+    icCount++;
+  });
+
+  let chatCount = 0;
+  state.chat.rows.forEach(r=>{
+    if(String(r[chatMap.chat_owner]||'').toLowerCase().trim() === e) chatCount++;
+  });
+
+  let iactCount = 0;
+  state.iact.rows.forEach(r=>{
+    if(String(r[iactMap.email]||'').toLowerCase().trim() !== e) return;
+    if(String(r[iactMap.channel_type]||'').trim().toLowerCase() === 'internet call') return;
+    iactCount++;
+  });
+
+  return {icCount, chatCount, iactCount};
+}
+
+function iactRenderSupportTable(list){
+  const rows = list.map(p=>{
+    const s = iactComputeSupportAgent(p.email);
+    const notFound = (s.icCount+s.chatCount+s.iactCount)===0;
+    return `<tr>
+      <td>${p.name}${notFound?' <span style="color:#B91C1C;font-size:11px;">（查無資料）</span>':''}</td>
+      <td>${s.icCount}/${s.iactCount}</td>
+      <td>${s.chatCount}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="report-wrap" style="overflow-x:auto;">
+    <table class="report">
+      <thead><tr><th>姓名</th><th title="網路電話產能/IACT產能">Call/IACT</th><th>Chat產能</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+document.getElementById('btn-generate-iact-support').onclick = ()=>{
+  const statusEl = document.getElementById('iact-support-status');
+  const wbox = document.getElementById('iact-support-warnings');
+  const outEl = document.getElementById('iact-support-output');
+  const list = iactParseSupportList(document.getElementById('iact-support-input').value);
+
+  if(!list.length){
+    wbox.innerHTML = `<div class="warn-box"><strong>尚未輸入任何人名</strong>，請至少輸入一行「姓名,Email」。</div>`;
+    outEl.innerHTML = '';
+    statusEl.textContent = '';
+    return;
+  }
+  if(!state.ic.rows.length && !state.chat.rows.length && !state.iact.rows.length){
+    wbox.innerHTML = `<div class="warn-box"><strong>尚未上傳任何明細資料</strong>，請先到「①上傳資料」完成上傳。</div>`;
+    outEl.innerHTML = '';
+    statusEl.textContent = '尚未上傳資料';
+    return;
+  }
+
+  outEl.innerHTML = iactRenderSupportTable(list);
+  wbox.innerHTML = '';
+  statusEl.textContent = `已計算 ${list.length} 人`;
+};
+
+document.getElementById('btn-save-iact-support').onclick = async ()=>{
+  await storageSet('iact_support_list', document.getElementById('iact-support-input').value);
+  document.getElementById('iact-support-status').textContent = '名單已儲存';
+};
+
+(async ()=>{
+  const saved = await storageGet('iact_support_list');
+  if(saved) document.getElementById('iact-support-input').value = saved;
+})();
