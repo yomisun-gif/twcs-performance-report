@@ -503,6 +503,19 @@
   <div id="iact-output"></div>
 
   <div class="card" style="margin-top:16px;">
+    <h2>支援名單（EMAIL/CHAT組臨時支援）</h2>
+    <p class="hint">給偶爾支援 Call/IACT 的 EMAIL/CHAT 組同仁用，不用加到③專員名單。每行一位，格式：<code>姓名,Email</code>（例如：王小明,wang.xm@shopee.com）。產能計算邏輯與上方 IACT 報表完全相同（Call 排除 Missed、IACT 排除 Channel Type=Internet Call）。</p>
+    <textarea id="iact-support-input" style="min-height:90px;" placeholder="王小明,wang.xm@shopee.com&#10;陳小華,chen.xh@shopee.com"></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="primary" id="btn-generate-iact-support">計算支援名單</button>
+      <button class="secondary" id="btn-save-iact-support">儲存名單</button>
+      <span class="badge" id="iact-support-status"></span>
+    </div>
+    <div id="iact-support-warnings"></div>
+    <div id="iact-support-output"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
     <h2>Call 摘要（複製貼上友善格式）</h2>
     <p class="hint">共 22 列，拆成「產能」「含IACT產能」兩個獨立區塊，各自 11 列、各自一顆複製鈕，方便貼到不連續的位置。BBT 不計入此區塊。Jackie／Kelly／BPO 系列目前是固定佔位（尚無資料），Patty／Lucy 依③名單裡的主管簡稱自動比對。半天的人「不排除」，但只算 0.5 人力（跟上面 IACT 明細的半天規則不同，這區塊獨立計算）。</p>
     <div class="toolbar">
