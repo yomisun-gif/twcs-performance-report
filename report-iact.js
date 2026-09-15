@@ -303,24 +303,17 @@ document.getElementById('btn-export-iact-xlsx').onclick = ()=>{
 
 /* ============================================================
    支援名單（EMAIL/CHAT組臨時支援）
-   不進③專員名單，直接用 Email 算 Call/Chat/IACT 產能，
-   跟上面 IACT 報表同一套篩選規則（Call排除Missed、IACT排除Internet Call），
-   但不透過 buildRawAgentStats()（該函式的 iactCount 只補給③名單裡的人），
+   不進③專員名單，直接用 Email 算 Call/Chat/IACT 產能，跟上面 IACT
+   報表同一套篩選規則（Call排除Missed、IACT排除Internet Call）。
+   不透過 buildRawAgentStats()（該函式的 iactCount 只補給③名單裡的人），
    改成直接掃描三份原始明細，避免非③名單的人抓不到 IACT 數字。
-   ============================================================ */
 
-function iactParseSupportList(text){
-  return text.split('\n')
-    .map(line=>line.trim())
-    .filter(Boolean)
-    .map(line=>{
-      const parts = line.split(',').map(s=>s.trim());
-      const email = (parts[1] || parts[0] || '').toLowerCase();
-      const name = parts[1] ? parts[0] : email;
-      return {name: name || email, email};
-    })
-    .filter(p=>p.email);
-}
+   分兩組：Chat / Email，各自像③專員名單一樣可新增/刪除列，只需填 Email。
+   這批人一律當全天（不支援半天0.5人力）。
+   早/晚班目前無資料可判斷，不特別拆分：複製摘要每組只出一組
+   「未含IACT/含IACT」數字，算法沿用 report-callsummary.js 的
+   csGroupStats()/csFmt()/csFmtCombined()，跟主要 Call 摘要同一套邏輯。
+   ============================================================ */
 
 function iactComputeSupportAgent(email){
   const icMap = state.ic.map, chatMap = state.chat.map, iactMap = state.iact.map;
@@ -348,54 +341,146 @@ function iactComputeSupportAgent(email){
   return {icCount, chatCount, iactCount};
 }
 
-function iactRenderSupportTable(list){
-  const rows = list.map(p=>{
-    const s = iactComputeSupportAgent(p.email);
-    const notFound = (s.icCount+s.chatCount+s.iactCount)===0;
-    return `<tr>
-      <td>${p.name}${notFound?' <span style="color:#B91C1C;font-size:11px;">（查無資料）</span>':''}</td>
-      <td>${s.icCount}/${s.iactCount}</td>
-      <td>${s.chatCount}</td>
-    </tr>`;
-  }).join('');
-  return `<div class="report-wrap" style="overflow-x:auto;">
-    <table class="report">
-      <thead><tr><th>姓名</th><th title="網路電話產能/IACT產能">Call/IACT</th><th>Chat產能</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`;
+const SUPPORT_GROUPS = ['chat', 'email'];
+const SUPPORT_GROUP_LABEL = {chat:'Chat', email:'Email'};
+
+function supportRowHTML(email){
+  return `<tr>
+    <td class="ag-text-col"><input type="text" class="sp-email" value="${email||''}" placeholder="email"></td>
+    <td class="sp-ic">-</td>
+    <td class="sp-chat">-</td>
+    <td class="sp-iact">-</td>
+    <td class="sp-total">-</td>
+    <td><button class="btn-row-del" type="button" title="刪除此列">✕</button></td>
+  </tr>`;
 }
+
+function addSupportRow(groupKey, email){
+  const tbody = document.querySelector(`.support-tbody[data-group="${groupKey}"]`);
+  const wrap = document.createElement('tbody');
+  wrap.innerHTML = supportRowHTML(email||'');
+  const row = wrap.firstElementChild;
+  tbody.appendChild(row);
+  row.querySelector('.btn-row-del').onclick = ()=> row.remove();
+}
+
+function renderSupportGroups(saved){
+  SUPPORT_GROUPS.forEach(g=>{
+    const tbody = document.querySelector(`.support-tbody[data-group="${g}"]`);
+    tbody.innerHTML = '';
+    const emails = (saved && saved[g] && saved[g].length) ? saved[g] : [''];
+    emails.forEach(e=> addSupportRow(g, e));
+  });
+}
+
+function getSupportGroupsFromDOM(){
+  const out = {};
+  SUPPORT_GROUPS.forEach(g=>{
+    out[g] = Array.from(document.querySelectorAll(`.support-tbody[data-group="${g}"] .sp-email`))
+      .map(inp=>inp.value.trim().toLowerCase())
+      .filter(Boolean);
+  });
+  return out;
+}
+
+document.querySelectorAll('.btn-support-add-row').forEach(btn=>{
+  btn.onclick = ()=> addSupportRow(btn.dataset.group, '');
+});
+
+let lastIactSupportSummary = null;
 
 document.getElementById('btn-generate-iact-support').onclick = ()=>{
   const statusEl = document.getElementById('iact-support-status');
   const wbox = document.getElementById('iact-support-warnings');
-  const outEl = document.getElementById('iact-support-output');
-  const list = iactParseSupportList(document.getElementById('iact-support-input').value);
+  const groups = getSupportGroupsFromDOM();
+  const totalPeople = SUPPORT_GROUPS.reduce((s,g)=> s+groups[g].length, 0);
 
-  if(!list.length){
-    wbox.innerHTML = `<div class="warn-box"><strong>尚未輸入任何人名</strong>，請至少輸入一行「姓名,Email」。</div>`;
-    outEl.innerHTML = '';
+  if(!totalPeople){
+    wbox.innerHTML = `<div class="warn-box"><strong>尚未輸入任何 Email</strong>，請至少在 Chat 或 Email 其中一組填一列。</div>`;
     statusEl.textContent = '';
     return;
   }
   if(!state.ic.rows.length && !state.chat.rows.length && !state.iact.rows.length){
     wbox.innerHTML = `<div class="warn-box"><strong>尚未上傳任何明細資料</strong>，請先到「①上傳資料」完成上傳。</div>`;
-    outEl.innerHTML = '';
     statusEl.textContent = '尚未上傳資料';
     return;
   }
 
-  outEl.innerHTML = iactRenderSupportTable(list);
-  wbox.innerHTML = '';
-  statusEl.textContent = `已計算 ${list.length} 人`;
+  const groupStats = {};
+  let notFoundEmails = [];
+
+  SUPPORT_GROUPS.forEach(g=>{
+    const rows = document.querySelectorAll(`.support-tbody[data-group="${g}"] tr`);
+    const list = [];
+    rows.forEach(row=>{
+      const email = row.querySelector('.sp-email').value.trim().toLowerCase();
+      if(!email) return;
+      const s = iactComputeSupportAgent(email);
+      row.querySelector('.sp-ic').textContent = s.icCount;
+      row.querySelector('.sp-chat').textContent = s.chatCount;
+      row.querySelector('.sp-iact').textContent = s.iactCount;
+      row.querySelector('.sp-total').textContent = s.icCount + s.chatCount;
+      if(s.icCount+s.chatCount+s.iactCount === 0) notFoundEmails.push(email);
+      list.push({icCount:s.icCount, iactCount:s.iactCount, halfDay:false});
+    });
+    groupStats[g] = csGroupStats(list);
+  });
+
+  const summaryTbl = document.getElementById('iact-support-summary-table');
+  summaryTbl.innerHTML = `<thead><tr><th>組別</th><th title="未含IACT/含IACT，算法同 Call 摘要">未含IACT / 含IACT</th></tr></thead>
+    <tbody>${SUPPORT_GROUPS.map(g=>{
+      const s = groupStats[g];
+      const combined = csFmtCombined(s.callAvg, s.iactAvgAggregate);
+      const value = s.callAvg===null ? '0.0/0.0' : `${csFmt(s.callAvg)}/${combined}`;
+      return `<tr><td>${SUPPORT_GROUP_LABEL[g]}</td><td>${value}</td></tr>`;
+    }).join('')}</tbody>`;
+  lastIactSupportSummary = SUPPORT_GROUPS.map(g=>{
+    const s = groupStats[g];
+    const combined = csFmtCombined(s.callAvg, s.iactAvgAggregate);
+    return s.callAvg===null ? '0.0/0.0' : `${csFmt(s.callAvg)}/${combined}`;
+  });
+
+  let warnHtml = '';
+  if(notFoundEmails.length){
+    warnHtml += `<div class="warn-box"><strong>查無資料：</strong>${notFoundEmails.join('、')}——請確認 Email 拼字，或當天是否真的有上傳到這些人的明細。</div>`;
+  }
+  wbox.innerHTML = warnHtml;
+  statusEl.textContent = `已計算 ${totalPeople} 人（早/晚班目前無法區分，摘要為當日整組平均，未含IACT/含IACT）`;
+};
+
+document.getElementById('btn-copy-iact-support-summary').onclick = async ()=>{
+  const statusEl = document.getElementById('iact-support-status');
+  if(!lastIactSupportSummary){ alert('請先按「計算支援名單」，才會有數字可以複製。'); return; }
+  const text = lastIactSupportSummary.join('\n');
+  try{
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = '已複製摘要到剪貼簿 ✓';
+  }catch(err){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try{
+      document.execCommand('copy');
+      statusEl.textContent = '已複製摘要到剪貼簿 ✓';
+    }catch(err2){
+      statusEl.textContent = '複製失敗，請直接用滑鼠拖曳選取手動複製';
+    }
+    document.body.removeChild(ta);
+  }
 };
 
 document.getElementById('btn-save-iact-support').onclick = async ()=>{
-  await storageSet('iact_support_list', document.getElementById('iact-support-input').value);
+  await storageSet('iact_support_groups', JSON.stringify(getSupportGroupsFromDOM()));
   document.getElementById('iact-support-status').textContent = '名單已儲存';
 };
 
 (async ()=>{
-  const saved = await storageGet('iact_support_list');
-  if(saved) document.getElementById('iact-support-input').value = saved;
+  const saved = await storageGet('iact_support_groups');
+  let parsed = null;
+  try{ parsed = saved ? JSON.parse(saved) : null; }catch(e){}
+  renderSupportGroups(parsed);
 })();
