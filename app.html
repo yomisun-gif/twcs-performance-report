@@ -538,15 +538,44 @@
 
   <div class="card" style="margin-top:16px;">
     <h2>支援名單（EMAIL/CHAT組臨時支援）</h2>
-    <p class="hint">給偶爾支援 Call/IACT 的 EMAIL/CHAT 組同仁用，不用加到③專員名單。每行一位，格式：<code>姓名,Email</code>（例如：王小明,wang.xm@shopee.com）。產能計算邏輯與上方 IACT 報表完全相同（Call 排除 Missed、IACT 排除 Channel Type=Internet Call）。</p>
-    <textarea id="iact-support-input" style="min-height:90px;" placeholder="王小明,wang.xm@shopee.com&#10;陳小華,chen.xh@shopee.com"></textarea>
-    <div class="toolbar" style="margin-top:8px;">
+    <p class="hint">給偶爾支援 Call/IACT 的 EMAIL/CHAT 組同仁用，不用加到③專員名單，這批人一律當全天處理。分 Chat／Email 兩組，各自獨立計算平均，只需要填 Email。產能計算邏輯與上方 IACT 報表、Call 摘要完全相同（Call 排除 Missed、IACT 排除 Channel Type=Internet Call）。<br>備註：目前無法區分早／晚班，複製摘要為當日整組平均一組數字，早/晚班請視實際狀況手動填入目的表單。</p>
+
+    <div class="support-group" data-group="chat">
+      <h3 style="margin-bottom:6px;">Chat 支援名單</h3>
+      <table class="agent-table">
+        <thead><tr>
+          <th style="width:30%;">Email</th><th>Call-通數</th><th>Chat-通數</th><th>IACT</th><th>Call+Chat產能</th><th></th>
+        </tr></thead>
+        <tbody class="support-tbody" data-group="chat"></tbody>
+      </table>
+      <button class="secondary btn-support-add-row" type="button" data-group="chat" style="margin-top:6px;">+ 新增一列</button>
+    </div>
+
+    <div class="support-group" data-group="email" style="margin-top:16px;">
+      <h3 style="margin-bottom:6px;">Email 支援名單</h3>
+      <table class="agent-table">
+        <thead><tr>
+          <th style="width:30%;">Email</th><th>Call-通數</th><th>Chat-通數</th><th>IACT</th><th>Call+Chat產能</th><th></th>
+        </tr></thead>
+        <tbody class="support-tbody" data-group="email"></tbody>
+      </table>
+      <button class="secondary btn-support-add-row" type="button" data-group="email" style="margin-top:6px;">+ 新增一列</button>
+    </div>
+
+    <div class="toolbar" style="margin-top:12px;">
       <button class="primary" id="btn-generate-iact-support">計算支援名單</button>
       <button class="secondary" id="btn-save-iact-support">儲存名單</button>
       <span class="badge" id="iact-support-status"></span>
     </div>
     <div id="iact-support-warnings"></div>
-    <div id="iact-support-output"></div>
+
+    <h3 style="margin-top:16px;">複製用摘要（未含IACT / 含IACT）</h3>
+    <div class="report-wrap" style="overflow-x:auto;max-width:320px;">
+      <table class="report" id="iact-support-summary-table"></table>
+    </div>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="secondary" id="btn-copy-iact-support-summary">📋 複製摘要</button>
+    </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
