@@ -292,3 +292,21 @@ document.getElementById('subtab-overview').onclick = ()=>{
     ovGenerate();
   }
 };
+
+/* 「標準檢視」預設隱藏，用右側「⋯ 舊版檢視」展開/收合分頁按鈕 */
+document.getElementById('subtab-legacy-toggle').onclick = ()=>{
+  const standardBtn = document.getElementById('subtab-standard');
+  const toggleBtn = document.getElementById('subtab-legacy-toggle');
+  const isHidden = standardBtn.style.display === 'none';
+  if(isHidden){
+    standardBtn.style.display = '';
+    toggleBtn.textContent = '✕ 收起舊版檢視';
+  }else{
+    standardBtn.style.display = 'none';
+    toggleBtn.textContent = '⋯ 舊版檢視';
+    // 收起舊版時，若目前正停在標準檢視，順手切回產能總覽new，避免畫面卡在被隱藏的分頁
+    if(standardBtn.classList.contains('active')){
+      document.getElementById('subtab-overview').click();
+    }
+  }
+};
