@@ -114,6 +114,11 @@ document.getElementById('btn-generate').onclick = ()=>{
   renderTable(rows);
   fixStickyOffsets();
   window.__overviewStale = true; // 讓「產能總覽」子分頁知道要重新產出，不沿用舊順序
+  // 產能總覽new 現為預設分頁，若目前就停在這頁，click 不會再觸發，這裡直接補產出
+  const overviewTab = document.getElementById('subtab-overview');
+  if(overviewTab && overviewTab.classList.contains('active') && typeof ovGenerate === 'function'){
+    ovGenerate();
+  }
   const wbox = document.getElementById('warnings');
   wbox.innerHTML = warnings.length ? `<div class="warn-box"><strong>提醒：</strong><br>${warnings.join('<br>')}</div>` : '';
   document.getElementById('gen-status').textContent = `已產出 ${rows.length} 位專員資料`;
