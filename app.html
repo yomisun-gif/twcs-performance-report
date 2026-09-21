@@ -145,10 +145,12 @@
   .ov-col-header.dragging{opacity:0.4;}
   .ov-col-header.drag-over-col{outline:2px solid var(--primary);outline-offset:-2px;}
   .ov-col-blanked{opacity:0.45;}
-  .sub-tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);}
+  .sub-tabs{display:flex;align-items:center;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);}
   .sub-tab{background:none;border:none;padding:8px 14px;font-size:13px;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;}
   .sub-tab:hover{color:var(--text);}
   .sub-tab.active{color:var(--primary-dark);font-weight:700;border-bottom-color:var(--primary);}
+  .sub-tab-toggle{background:none;border:none;padding:6px 10px;margin-left:auto;font-size:12px;color:var(--text-secondary);cursor:pointer;opacity:0.6;}
+  .sub-tab-toggle:hover{opacity:1;color:var(--text);}
   /* 區塊邊界色條：只標在表頭，作為區塊分界指示 */
   table.report thead tr:nth-child(1) th.blk-ic{border-left:3px solid var(--ic-border);}
   table.report thead tr:nth-child(1) th.blk-chat{border-left:3px solid var(--chat-border);}
@@ -433,15 +435,16 @@
   </div>
 
   <div class="sub-tabs">
-    <button class="sub-tab active" id="subtab-standard">標準檢視</button>
-    <button class="sub-tab" id="subtab-overview">產能總覽new</button>
+    <button class="sub-tab" id="subtab-standard" style="display:none;">標準檢視</button>
+    <button class="sub-tab active" id="subtab-overview">產能總覽new</button>
+    <button class="sub-tab-toggle" id="subtab-legacy-toggle" title="展開舊版「標準檢視」">⋯ 舊版檢視</button>
   </div>
 
-  <div id="result-view-standard">
+  <div id="result-view-standard" style="display:none;">
     <div class="report-wrap"><table class="report" id="report-table"></table></div>
   </div>
 
-  <div id="result-view-overview" style="display:none;">
+  <div id="result-view-overview">
     <div class="card">
       <p class="hint">跟上面「標準檢視」同一套算法（含新版ACW），只是重新排欄位：Call(產能/AHT/ACD/滿意度/回收率) → Chat(產能) → 空白欄 → Call+Chat(產能/ACW) → 兩個空白欄(Q/R) → 線上Online → 忙碌Busy → 離開Away → 離線Offline → 合計。<b>每一欄的表頭都可以直接拖曳調整順序</b>（單欄拖，或同一區塊連續拖幾次等於整塊搬動）。表頭上有三個小圖示：👁 把該欄切換成空白（保留位置但不顯示資料）、➕ 在這欄後面插入一個新的空白欄、🗑 把這一欄整個移除（後面欄位會往前補上，跟👁不一樣，是真的消失）。組別/Batch 這裡維持合併儲存格，跟標準檢視一致。匯出Excel會照您排版完的最終結果輸出。切回「標準檢視」再切回來，排版會保留；重新按上面的「產出報表」、或按「還原原始順序」才會重置。</p>
       <div class="toolbar">
