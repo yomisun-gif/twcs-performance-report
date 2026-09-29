@@ -152,20 +152,25 @@ async function applySavedOrGuessMap(sourceKey, headers){
   }
   state[sourceKey].map = map;
 }
-function assignSource(sourceKey, rows, headers){
+// srcFile：原始 File 物件（手動上傳時帶入，供「存入資料庫」使用）；origin：'local' | 'drive'
+function assignSource(sourceKey, rows, headers, srcFile, origin){
   state[sourceKey].rows = rows;
   state[sourceKey].headers = headers;
+  state[sourceKey].file = srcFile || null;
+  state[sourceKey].origin = origin || (srcFile ? 'local' : '');
   applySavedOrGuessMap(sourceKey, headers).then(()=>{
     renderMapping(sourceKey);
     document.getElementById('count-'+sourceKey).innerHTML = `<span class="status-ok">已讀取 ${rows.length} 筆資料</span>，欄位數：${headers.length}`;
     checkNextStep();
+    document.dispatchEvent(new CustomEvent('sources:changed'));
   });
 }
 function clearSource(sourceKey){
-  state[sourceKey] = {rows:[], headers:[], map:{}};
+  state[sourceKey] = {rows:[], headers:[], map:{}, file:null, origin:''};
   document.getElementById('count-'+sourceKey).textContent = '尚未上傳';
   renderMapping(sourceKey);
   checkNextStep();
+  document.dispatchEvent(new CustomEvent('sources:changed'));
 }
 function checkNextStep(){
   const card = document.getElementById('next-step-card');
@@ -209,12 +214,12 @@ function handleIncomingFile(file){
   readFile(file, (rows, headers)=>{
     const guessed = guessSourceType(file.name, headers);
     let currentType = guessed || 'ic';
-    assignSource(currentType, rows, headers);
+    assignSource(currentType, rows, headers, file);
     addDetectRow(file.name, currentType, !guessed, (newType)=>{
       if(newType === currentType) return;
       clearSource(currentType);
       currentType = newType;
-      assignSource(currentType, rows, headers);
+      assignSource(currentType, rows, headers, file);
     });
   });
 }
@@ -238,7 +243,7 @@ function setupUpload(id, sourceKey){
   document.getElementById(id).addEventListener('change', function(e){
     const file = e.target.files[0];
     if(!file) return;
-    readFile(file, (rows, headers)=> assignSource(sourceKey, rows, headers));
+    readFile(file, (rows, headers)=> assignSource(sourceKey, rows, headers, file));
   });
 }
 setupUpload('file-ic','ic');
