@@ -6,7 +6,7 @@
    storage，否則自動退回 localStorage），跟②③分頁的持久化是同一套。
    ============================================================ */
 
-const ANNOUNCEMENT_ID = 'iact_support_2026-09-15';
+const ANNOUNCEMENT_ID = 'drive_store_2026-09-29';
 
 (async ()=>{
   const overlay = document.getElementById('announcement-overlay');
