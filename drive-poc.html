@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drive 資料庫 PoC</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  body{font-family:-apple-system,"Noto Sans TC",sans-serif;max-width:860px;margin:24px auto;padding:0 16px;color:#222;font-size:14px;}
+  h1{font-size:18px;} h2{font-size:15px;margin-top:28px;border-bottom:1px solid #eee;padding-bottom:6px;}
+  button{padding:6px 14px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer;}
+  button.primary{background:#ee4d2d;color:#fff;border-color:#ee4d2d;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0;}
+  .chip{padding:4px 10px;border:1px solid #ddd;border-radius:14px;cursor:pointer;background:#fafafa;}
+  .chip.active{background:#ee4d2d;color:#fff;border-color:#ee4d2d;}
+  table{border-collapse:collapse;width:100%;margin-top:8px;font-size:12px;}
+  td,th{border:1px solid #eee;padding:4px 8px;text-align:left;}
+  #log{background:#111;color:#9f9;font:12px/1.5 monospace;padding:10px;border-radius:6px;white-space:pre-wrap;max-height:260px;overflow:auto;margin-top:24px;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<h1>Drive 資料庫 PoC</h1>
+<p>測試項目：① OAuth 取得 Drive token ② 列出日期資料夾 ③ 下載檔案並用 SheetJS 解析 ④ 管理者上傳</p>
+
+<div class="row">
+  <button class="primary" id="btn-auth">授權讀取 Drive</button>
+  <span id="who"></span>
+</div>
+
+<h2>② 資料庫日期</h2>
+<div class="row" id="dates"><span style="color:#999">尚未授權</span></div>
+
+<h2>③ 該日檔案</h2>
+<div id="files"><span style="color:#999">請先選日期</span></div>
+<div id="parsed"></div>
+
+<section id="admin" class="hidden">
+  <h2>④ 上傳至資料庫（管理者）</h2>
+  <div class="row">
+    <input type="date" id="up-date">
+    <input type="file" id="up-files" multiple accept=".xlsx,.xls,.csv">
+    <button class="primary" id="btn-upload">上傳</button>
+  </div>
+  <p style="color:#888;font-size:12px">上傳需要寫入權限，第一次按會再跳一次授權視窗。同日期同檔名會覆蓋舊版。</p>
+</section>
+
+<div id="log"></div>
+
+<script>
+/* ================= 設定 ================= */
+const CONFIG = {
+  CLIENT_ID: '1065926217249-7ms3cb5dsfodmmpcqunp8k0ab44puvv6.apps.googleusercontent.com',
+  ROOT_FOLDER_ID: '1iuUFD0T4Og-5zCNBRNjEbITMVoqjh5Xx',
+  ADMINS: ['yomi.sun@shopee.com'],   // 只影響 UI 顯示；真正權限由 Drive 資料夾 ACL 決定
+  SCOPE_READ:  'openid email https://www.googleapis.com/auth/drive.readonly',
+  SCOPE_WRITE: 'https://www.googleapis.com/auth/drive',
+};
+const API = 'https://www.googleapis.com/drive/v3';
+const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const ALL_DRIVES = 'supportsAllDrives=true&includeItemsFromAllDrives=true';
+
+let token = null, writeToken = null, userEmail = '';
+
+if(location.protocol === 'file:'){
+  document.addEventListener('DOMContentLoaded', ()=>{
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="background:#fdecea;color:#c62828;padding:10px 14px;border-radius:6px;margin-bottom:12px">⚠️ 目前是從本機檔案開啟（file://），Google OAuth 不接受。請改從 GitHub Pages 網址開啟。</div>');
+  });
+}
+
+const log = (...a)=>{ const el=document.getElementById('log'); el.textContent += `[${new Date().toLocaleTimeString()}] ${a.join(' ')}\n`; el.scrollTop=el.scrollHeight; };
+const $ = id => document.getElementById(id);
+
+/* ================= ① 授權 ================= */
+function getToken(scope){
+  return new Promise((resolve, reject)=>{
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.CLIENT_ID,
+      scope,
+      hint: sessionStorage.getItem('sp_auth_email') || undefined,
+      callback: r => r.error ? reject(r) : resolve(r.access_token),
+      error_callback: e => reject(e),
+    });
+    client.requestAccessToken({prompt: ''});
+  });
+}
+
+async function driveFetch(url, opt={}, tk=token){
+  const res = await fetch(url, {...opt, headers:{...(opt.headers||{}), Authorization:`Bearer ${tk}`}});
+  if(!res.ok){ const t = await res.text(); throw new Error(`${res.status} ${t.slice(0,300)}`); }
+  return res;
+}
+
+$('btn-auth').onclick = async ()=>{
+  try{
+    token = await getToken(CONFIG.SCOPE_READ);
+    const u = await (await driveFetch('https://www.googleapis.com/oauth2/v3/userinfo')).json();
+    userEmail = (u.email||'').toLowerCase();
+    $('who').textContent = `✅ ${userEmail}`;
+    log('授權成功', userEmail);
+    if(CONFIG.ADMINS.includes(userEmail)) $('admin').classList.remove('hidden');
+    await loadDates();
+  }catch(e){ log('❌ 授權失敗', JSON.stringify(e.message||e)); }
+};
+
+/* ================= ② 列出日期資料夾 ================= */
+async function listChildren(parentId, extraQ=''){
+  const q = encodeURIComponent(`'${parentId}' in parents and trashed=false ${extraQ}`);
+  const url = `${API}/files?q=${q}&fields=files(id,name,mimeType,size,modifiedTime,lastModifyingUser(emailAddress))&orderBy=name desc&pageSize=1000&${ALL_DRIVES}`;
+  return (await (await driveFetch(url)).json()).files || [];
+}
+
+async function loadDates(){
+  try{
+    const folders = await listChildren(CONFIG.ROOT_FOLDER_ID, "and mimeType='application/vnd.google-apps.folder'");
+    const dated = folders.filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f.name));
+    log(`找到 ${dated.length} 個日期資料夾`);
+    $('dates').innerHTML = dated.length ? '' : '<span style="color:#999">資料庫尚無資料</span>';
+    dated.forEach(f=>{
+      const c = document.createElement('span');
+      c.className='chip'; c.textContent=f.name;
+      c.onclick=()=>{ document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); c.classList.add('active'); loadFiles(f); };
+      $('dates').appendChild(c);
+    });
+  }catch(e){ log('❌ 列資料夾失敗', e.message); }
+}
+
+/* ================= ③ 列檔 + 下載 + 解析 ================= */
+async function loadFiles(folder){
+  $('parsed').innerHTML='';
+  const files = await listChildren(folder.id, "and mimeType!='application/vnd.google-apps.folder'");
+  log(`${folder.name}：${files.length} 個檔案`);
+  $('files').innerHTML = `<table><tr><th>檔名</th><th>大小</th><th>更新</th><th>上傳者</th><th></th></tr>${
+    files.map(f=>`<tr><td>${f.name}</td><td>${(f.size/1024).toFixed(0)} KB</td><td>${new Date(f.modifiedTime).toLocaleString()}</td><td>${f.lastModifyingUser?.emailAddress||''}</td><td><button data-id="${f.id}" data-name="${f.name}">下載並解析</button></td></tr>`).join('')
+  }</table>`;
+  $('files').querySelectorAll('button').forEach(b=> b.onclick=()=>parseRemote(b.dataset.id, b.dataset.name));
+}
+
+async function parseRemote(id, name){
+  try{
+    const t0 = performance.now();
+    const buf = await (await driveFetch(`${API}/files/${id}?alt=media&supportsAllDrives=true`)).arrayBuffer();
+    const t1 = performance.now();
+    // ↓ 與 engine.js 現有流程相同：ArrayBuffer → XLSX.read → sheet_to_json
+    const wb = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
+    const t2 = performance.now();
+    log(`${name}：下載 ${(buf.byteLength/1024).toFixed(0)} KB / ${(t1-t0).toFixed(0)}ms，解析 ${rows.length} 列 / ${(t2-t1).toFixed(0)}ms`);
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    $('parsed').innerHTML = `<p><b>${name}</b>：${rows.length} 列、${cols.length} 欄</p><table><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>${
+      rows.slice(0,3).map(r=>`<tr>${cols.map(c=>`<td>${r[c] instanceof Date ? r[c].toLocaleString() : r[c]}</td>`).join('')}</tr>`).join('')}</table><p style="color:#888;font-size:12px">僅顯示前 3 列</p>`;
+  }catch(e){ log('❌ 下載/解析失敗', e.message); }
+}
+
+/* ================= ④ 上傳 ================= */
+async function ensureDateFolder(dateStr){
+  const q = encodeURIComponent(`'${CONFIG.ROOT_FOLDER_ID}' in parents and name='${dateStr}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const found = (await (await driveFetch(`${API}/files?q=${q}&fields=files(id)&${ALL_DRIVES}`, {}, writeToken)).json()).files;
+  if(found?.length) return found[0].id;
+  const res = await driveFetch(`${API}/files?supportsAllDrives=true`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:dateStr, mimeType:'application/vnd.google-apps.folder', parents:[CONFIG.ROOT_FOLDER_ID]})
+  }, writeToken);
+  log(`建立資料夾 ${dateStr}`);
+  return (await res.json()).id;
+}
+
+async function uploadOne(folderId, file){
+  const q = encodeURIComponent(`'${folderId}' in parents and name='${file.name.replace(/'/g,"\\'")}' and trashed=false`);
+  const exist = (await (await driveFetch(`${API}/files?q=${q}&fields=files(id)&${ALL_DRIVES}`, {}, writeToken)).json()).files;
+  const meta = exist?.length ? {} : {name:file.name, parents:[folderId]};
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(meta)], {type:'application/json'}));
+  form.append('file', file);
+  const url = exist?.length
+    ? `${UPLOAD}/files/${exist[0].id}?uploadType=multipart&supportsAllDrives=true`
+    : `${UPLOAD}/files?uploadType=multipart&supportsAllDrives=true`;
+  await driveFetch(url, {method: exist?.length ? 'PATCH' : 'POST', body: form}, writeToken);
+  log(`${exist?.length ? '覆蓋' : '上傳'} ${file.name}`);
+}
+
+$('btn-upload').onclick = async ()=>{
+  const d = $('up-date').value, files = [...$('up-files').files];
+  if(!d || !files.length) return log('請選日期與檔案');
+  try{
+    writeToken = writeToken || await getToken(CONFIG.SCOPE_WRITE);
+    const fid = await ensureDateFolder(d);
+    for(const f of files) await uploadOne(fid, f);
+    log('✅ 上傳完成'); await loadDates();
+  }catch(e){ log('❌ 上傳失敗', e.message); }
+};
+</script>
+</body>
+</html>
