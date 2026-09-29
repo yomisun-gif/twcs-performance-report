@@ -343,6 +343,7 @@
 
 <!-- ① 上傳 -->
 <div class="panel active" id="panel-upload">
+  <div class="card" id="drive-card"></div>
   <div class="card">
     <h2>上傳明細檔</h2>
     <p class="hint">支援 .xlsx / .xls / .csv。核心四份（IC/Chat/Status Log/Hourly）用於①~④的所有報表；第5份 IACT 是選填，只有「IACT」分頁會用到。可一次拖曳多個檔案，系統會依檔名/欄位自動判斷是哪一種明細表（可事後手動修正）。</p>
@@ -656,6 +657,8 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="drive-store.js"></script>
 <script src="announcement.js"></script>
 <script src="report-daily.js"></script>
 <script src="report-overview.js"></script>
