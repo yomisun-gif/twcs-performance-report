@@ -290,30 +290,106 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
     return true;
   });
 
-  const bodyRows = filtered.map(r=>{
+  slLastFiltered = filtered;
+
+  const bodyRows = filtered.map((r, i)=>{
     const cls = classifyStatusRow(r, stMap);
     const startCellClass = cls.included ? 'cell-included' : 'cell-alert';
     const subColor = slColorFor(r[stMap.sub_status]);
     const subStyle = ` style="background:${subColor};"`;
     const dur = secBetween(r[stMap.start_datetime], r[stMap.end_datetime]);
     const durText = dur !== null ? secToHMS(dur) : '-';
-    const reasonText = cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`;
-    return `<tr>
+    // 無法辨識的狀態、或 End Time 無效（算不出時長）不開放手動計入
+    const lockable = !cls.code || (dur === null && !cls.included);
+    const reasonText = cls.overridden
+      ? `✋ ${cls.reason}`
+      : (cls.included ? '✅ 已計入計算' : `❌ ${cls.reason}`);
+    const resetBtn = cls.overridden
+      ? `<button type="button" class="sl-ov-reset" data-idx="${i}" title="還原為自動判斷">↺</button>` : '';
+    return `<tr${cls.overridden ? ' class="sl-overridden"' : ''}>
       <td>${r[stMap.email]||'-'}</td>
       <td${subStyle}>${r[stMap.sub_status]||'-'}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.start_datetime])}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.end_datetime])}</td>
       <td>${durText}</td>
-      <td class="sl-reason">${reasonText}</td>
+      <td class="sl-reason"><label class="sl-ov-label" title="${lockable ? '此筆資料無法計入（狀態無法辨識或沒有有效時長）' : '勾選=列入計算，取消=排除'}">
+        <input type="checkbox" class="sl-ov-check" data-idx="${i}" ${cls.included?'checked':''} ${lockable?'disabled':''}>
+        <span>${reasonText}</span></label>${resetBtn}</td>
     </tr>`;
   }).join('');
 
   tbl.innerHTML = `<thead><tr>
-      <th>Email</th><th>Sub Status</th><th>Status Start Time</th><th>Status End Time</th><th>持續時間</th><th>計算狀態</th>
+      <th>Email</th><th>Sub Status</th><th>Status Start Time</th><th>Status End Time</th><th>持續時間</th><th>計算狀態（可手動勾選）</th>
     </tr></thead>
     <tbody>${bodyRows || '<tr><td colspan="6" class="rt-empty-note">沒有符合篩選條件的資料</td></tr>'}</tbody>`;
 
-  countEl.textContent = `共 ${filtered.length} 筆（已計入 ${filtered.filter(r=>classifyStatusRow(r,stMap).included).length} 筆）`;
+  tbl.querySelectorAll('.sl-ov-check').forEach(cb=>{
+    cb.addEventListener('change', ()=> setSlOverride([filtered[+cb.dataset.idx]], cb.checked));
+  });
+  tbl.querySelectorAll('.sl-ov-reset').forEach(btn=>{
+    btn.addEventListener('click', ()=> setSlOverride([filtered[+btn.dataset.idx]], null));
+  });
+
+  const classes = filtered.map(r=>classifyStatusRow(r,stMap));
+  const ovCount = classes.filter(c=>c.overridden).length;
+  const totalOv = Object.keys(slOverrides).length;
+  countEl.textContent = `共 ${filtered.length} 筆（已計入 ${classes.filter(c=>c.included).length} 筆` +
+    (ovCount ? `，手動調整 ${ovCount} 筆` : '') + '）' +
+    (totalOv ? `｜全檔手動調整共 ${totalOv} 筆` : '');
+};
+
+/* ============ Status Log 手動計入/排除 ============ */
+let slLastFiltered = [];
+
+// include: true=強制計入 / false=強制排除 / null=還原自動判斷
+// 跟自動判斷結果相同時不存 key，避免殘留無意義的覆寫
+async function setSlOverride(rows, include){
+  const stMap = state.status.map;
+  rows.forEach(r=>{
+    if(!r) return;
+    const key = slRowKey(r, stMap);
+    const auto = classifyStatusRowAuto(r, stMap);
+    if(!auto.code) return;
+    if(include === null || include === auto.included){ delete slOverrides[key]; return; }
+    if(include && secBetween(r[stMap.start_datetime], r[stMap.end_datetime]) === null) return;
+    slOverrides[key] = include;
+  });
+  await saveSlOverrides();
+  document.getElementById('btn-filter-statuslog').click();
+  slMarkReportsStale();
+}
+
+// 覆寫只影響之後按「產出」的結果；已產出的報表提示要重新產出
+function slMarkReportsStale(){
+  const el = document.getElementById('statuslog-ov-stale');
+  if(el) el.style.display = 'inline';
+}
+
+// 任一報表重新產出後，收起「請重新產出」提示
+['btn-generate','btn-generate-realtime','btn-generate-dashboard','btn-generate-iact','btn-generate-callsummary'].forEach(id=>{
+  const b = document.getElementById(id);
+  if(b) b.addEventListener('click', ()=>{
+    const el = document.getElementById('statuslog-ov-stale');
+    if(el) el.style.display = 'none';
+  });
+});
+
+document.getElementById('btn-sl-include-all').onclick = ()=>{
+  if(!slLastFiltered.length) return;
+  setSlOverride(slLastFiltered, true);
+};
+document.getElementById('btn-sl-exclude-all').onclick = ()=>{
+  if(!slLastFiltered.length) return;
+  setSlOverride(slLastFiltered, false);
+};
+document.getElementById('btn-sl-reset-overrides').onclick = async ()=>{
+  const n = Object.keys(slOverrides).length;
+  if(!n){ alert('目前沒有任何手動調整。'); return; }
+  if(!confirm(`要清除全部 ${n} 筆手動調整，全部還原為自動判斷嗎？`)) return;
+  slOverrides = {};
+  await saveSlOverrides();
+  if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+  slMarkReportsStale();
 };
 
 // Status Log 上傳完成後，順便先把 Sub Status 選單跟顏色選取器填好，不用等按篩選才看得到
