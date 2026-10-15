@@ -663,7 +663,40 @@ const SUBMAP = {
 // 判斷一筆 Status Log 原始資料，這次計算「有沒有」被納入，以及原因。
 // computeReport()/buildRawAgentStats() 跟 Status Log 篩選檢視都呼叫這支，
 // 確保兩邊的排除規則永遠是同一套，不會各寫一套邏輯導致對不上。
+// ---- 手動覆寫：使用者在 Status Log 篩選檢視勾選/取消「計入」，優先於自動規則 ----
+// key = email|sub status|start|end（用內容當 key，重新上傳同一份檔案仍會套用）
+// value = true（強制計入）/ false（強制排除）；沒有 key = 依自動規則
+let slOverrides = {};
+function slRowKey(row, stMap){
+  const norm = v=>{ const d = toDate(v); return d ? String(d.getTime()) : String(v==null?'':v).trim(); };
+  return [
+    String(row[stMap.email]||'').toLowerCase().trim(),
+    String(row[stMap.sub_status]||'').toLowerCase().trim(),
+    norm(row[stMap.start_datetime]),
+    norm(row[stMap.end_datetime])
+  ].join('|');
+}
+async function loadSlOverrides(){
+  try{ slOverrides = JSON.parse(await storageGet('sl_overrides') || '{}') || {}; }catch(e){ slOverrides = {}; }
+}
+async function saveSlOverrides(){ await storageSet('sl_overrides', JSON.stringify(slOverrides)); }
+loadSlOverrides();
+
 function classifyStatusRow(row, stMap){
+  const auto = classifyStatusRowAuto(row, stMap);
+  // 狀態值無法辨識（code=null）沒有對應欄位可以累加，不開放手動計入
+  if(!auto.code) return Object.assign(auto, {autoIncluded:auto.included, overridden:false});
+  const ov = slOverrides[slRowKey(row, stMap)];
+  if(ov === undefined || ov === auto.included){
+    return Object.assign(auto, {autoIncluded:auto.included, overridden:false});
+  }
+  return {
+    included: ov, code: auto.code, autoIncluded: auto.included, overridden: true,
+    reason: ov ? `手動計入（原：${auto.reason}）` : '手動排除'
+  };
+}
+
+function classifyStatusRowAuto(row, stMap){
   const sub = String(row[stMap.sub_status]||'').toLowerCase().trim();
   let code = SUBMAP[sub];
   if(!code){
