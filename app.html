@@ -226,7 +226,14 @@
   .cell-included{background:#E3F5E7 !important;color:#15803D !important;font-weight:600;}
   table.cs-table .cs-ref-col{display:none;background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:400;}
   table.cs-table.cs-show-ref .cs-ref-col{display:table-cell;}
-  .sl-reason{font-size:11px;color:var(--text-secondary);}
+  .sl-reason{font-size:11px;color:var(--text-secondary);white-space:nowrap;}
+  .sl-ov-label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
+  .sl-ov-label input{margin:0;cursor:pointer;}
+  .sl-ov-label input:disabled{cursor:not-allowed;}
+  tr.sl-overridden td.sl-reason{background:#FFF6DB;color:#92600A;font-weight:600;}
+  html.dark tr.sl-overridden td.sl-reason{background:#3D3215;color:#F5C96B;}
+  .sl-ov-reset{margin-left:6px;padding:0 6px;font-size:11px;line-height:18px;border:1px solid var(--border);border-radius:4px;background:transparent;color:inherit;cursor:pointer;}
+  .sl-ov-stale{font-size:12px;color:#B45309;font-weight:600;}
   /* Status Log 篩選檢視：表頭需要不透明背景，捲動時才不會被底下資料穿透 */
   #statuslog-filter-table thead th{background:var(--bg);}
   .sl-color-label{font-size:12px;color:var(--text-secondary);}
@@ -460,7 +467,7 @@
 
   <div class="card" style="margin-top:16px;">
     <h2>Status Log 篩選檢視</h2>
-    <p class="hint">用來核對 Status Log 原始資料。輸入專員 Email 或選 Sub Status（可各自單獨用，也可以一起篩），只列出 Sub Status / Status Start Time / Status End Time 三欄，並標示這筆資料這次計算「有沒有被納入」——綠色代表有計入，紅色代表被排除（跨日或 End Time=0），滑鼠移過去可以看排除原因。</p>
+    <p class="hint">用來核對 Status Log 原始資料。輸入專員 Email 或選 Sub Status（可各自單獨用，也可以一起篩），只列出 Sub Status / Status Start Time / Status End Time 三欄，並標示這筆資料這次計算「有沒有被納入」——綠色代表有計入，紅色代表被排除（跨日或 End Time=0）。「計算狀態」欄可手動勾選/取消，覆寫自動判斷（✋ 標示），會套用到所有報表，並記住設定；按 ↺ 還原單筆。</p>
     <div class="toolbar">
       <input type="text" id="statuslog-filter-email" placeholder="輸入專員 Email 或姓名（留空=全部人）" style="width:280px;" list="statuslog-agent-suggestions">
       <datalist id="statuslog-agent-suggestions"></datalist>
@@ -473,6 +480,13 @@
       <button class="secondary" id="btn-reset-sl-colors">還原全部白色</button>
     </div>
     <div class="toolbar" id="sl-color-picker-container" style="margin-top:-4px;flex-wrap:wrap;"></div>
+    <div class="toolbar" style="margin-top:-4px;flex-wrap:wrap;">
+      <span class="sl-color-label">手動調整（套用到目前篩選結果）：</span>
+      <button class="secondary" id="btn-sl-include-all">全部計入</button>
+      <button class="secondary" id="btn-sl-exclude-all">全部排除</button>
+      <button class="secondary" id="btn-sl-reset-overrides">清除全部手動調整</button>
+      <span id="statuslog-ov-stale" class="sl-ov-stale" style="display:none;">⚠️ 計入設定已變更，請重新按各報表的「產出」按鈕更新數字</span>
+    </div>
     <div class="report-wrap" style="max-height:55vh;">
       <table class="report" id="statuslog-filter-table"></table>
     </div>
