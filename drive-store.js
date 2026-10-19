@@ -141,12 +141,12 @@
     return await res.json();
   }
 
-  async function uploadSource(folderId, key, file, existing){
+  async function uploadSource(folderId, key, file, existing, note){
     const ext = (file.name.match(/\.(xlsx|xls|csv)$/i)?.[1] || 'xlsx').toLowerCase();
     const who = sessionStorage.getItem('sp_auth_email') || '';
     const meta = {
       name: `${key}.${ext}`,
-      description: `原始檔名：${file.name}\n上傳者：${who}\n上傳時間：${new Date().toLocaleString('zh-TW')}`,
+      description: `原始檔名：${note || file.name}\n上傳者：${who}\n上傳時間：${new Date().toLocaleString('zh-TW')}`,
     };
     const same = existing.filter(f=> keyOfDriveFile(f.name) === key);
     const target = same.shift();
@@ -161,6 +161,67 @@
       ? `${UPLOAD}/files/${target.id}?uploadType=multipart&supportsAllDrives=true`
       : `${UPLOAD}/files?uploadType=multipart&supportsAllDrives=true`;
     await api(url, {method: target ? 'PATCH' : 'POST', body: form}, 'write');
+  }
+
+  /* ---------- 多日拆分 ----------
+     每種明細用「跟後台下載篩選一致」的時間欄位決定歸屬日，單日下載與多日拆分結果相同：
+       IC：Call Request Time（後台依此篩選，故 Call End Time 會有少量落在隔日）
+       Chat：Created Time
+       Status Log：Status Start Time（跨日那筆照舊由 classifyStatusRow 排除）
+     Hourly Activity / IACT 沒有日期欄位 → 不拆，整份存到「資料日」欄選的那天 */
+  function findHeader(headers, kws){
+    const lower = headers.map(h=>String(h).toLowerCase().trim());
+    for(const kw of kws){ const i = lower.indexOf(kw); if(i>=0) return headers[i]; }
+    for(const kw of kws){ const i = lower.findIndex(h=>h.includes(kw)); if(i>=0) return headers[i]; }
+    return '';
+  }
+  function splitColumn(k){
+    const s = state[k], h = s.headers || [];
+    if(k === 'ic') return findHeader(h, ['call request time']) || s.map.call_end_time || '';
+    if(k === 'chat') return findHeader(h, ['created time', 'create time']);
+    if(k === 'status') return s.map.start_datetime || findHeader(h, ['status start time']);
+    return '';
+  }
+  function dayKey(v){
+    const d = toDate(v);
+    if(!d || d.getFullYear() <= 1899) return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  // 回傳 {k: {col, groups:{日期: rows[]}}}，只含可拆的本機來源
+  function groupLocalByDay(localKeys){
+    const out = {};
+    localKeys.forEach(k=>{
+      const col = splitColumn(k);
+      if(!col) return;
+      const groups = {};
+      state[k].rows.forEach(r=>{
+        const day = dayKey(r[col]);
+        if(!day) return;
+        (groups[day] = groups[day] || []).push(r);
+      });
+      out[k] = {col, groups};
+    });
+    return out;
+  }
+  // 日期值轉回原始字串格式寫出，避免 SheetJS Date 往返產生時區／秒數誤差
+  function cellOut(v){
+    if(!(v instanceof Date)) return v;
+    const p = n=>String(n).padStart(2,'0');
+    return `${v.getFullYear()}-${p(v.getMonth()+1)}-${p(v.getDate())} ${p(v.getHours())}:${p(v.getMinutes())}:${p(v.getSeconds())}`;
+  }
+  function rowsToFile(k, headers, rows){
+    const data = rows.map(r=>{ const o = {}; headers.forEach(h=> o[h] = cellOut(r[h])); return o; });
+    const ws = XLSX.utils.json_to_sheet(data, {header: headers});
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const buf = XLSX.write(wb, {type:'array', bookType:'xlsx', compression:true});
+    return new File([buf], `${k}.xlsx`, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  function detectedDays(localKeys){
+    const g = groupLocalByDay(localKeys);
+    const days = new Set();
+    Object.values(g).forEach(x=> Object.keys(x.groups).forEach(d=>days.add(d)));
+    return {grouped:g, days: Array.from(days).sort()};
   }
 
   /* ---------- 輔助：從 Status Log 推測資料日（Start Time 眾數） ---------- */
@@ -228,32 +289,75 @@
     }catch(e){ ui.busy = false; setMsg('❌ ' + e.message, 'err'); }
   }
 
-  async function saveToDrive(){
-    const dateStr = document.getElementById('dr-save-date').value;
-    if(!dateStr) return setMsg('請先選擇資料日', 'err');
-    const localKeys = KEYS.filter(k=> state[k].file && state[k].origin === 'local');
-    try{
-      await ensureToken('write');  // 先取 token（需在點擊當下），再跳確認框
-      const suggested = suggestDataDate();
-      if(suggested && suggested !== dateStr &&
-        !confirm(`Status Log 的資料大多落在 ${suggested}，但你選的是 ${dateStr}。\n確定要存成 ${dateStr}？`)) return;
-      const existing = ui.dates.find(x=>x.name === dateStr);
-      if(existing && !confirm(`${dateStr} 已有資料，將覆蓋以下類型：\n${localKeys.map(k=>SOURCE_LABEL[k]).join('、')}\n確定？`)) return;
-      ui.busy = true; setMsg(`存入 ${dateStr} 中…`);
-      const folder = await ensureDateFolder(dateStr);
+  // plan: [{day, items:[{k, file, note, rows}]}]
+  async function writePlan(plan){
+    let n = 0;
+    for(const {day, items} of plan){
+      const folder = await ensureDateFolder(day);
       const files = await listFolderFiles(folder.id, 'write');
-      for(const k of localKeys){
-        setMsg(`上傳 ${SOURCE_LABEL[k]}…`);
-        await uploadSource(folder.id, k, state[k].file, files);
+      for(const it of items){
+        setMsg(`上傳 ${day} ${SOURCE_LABEL[it.k]}…`);
+        await uploadSource(folder.id, it.k, it.file, files, it.note);
+        n++;
       }
       const prev = (folder.description||'').split(',').map(s=>s.trim()).filter(s=>KEYS.includes(s));
-      const types = KEYS.filter(k=> prev.includes(k) || localKeys.includes(k));
+      const types = KEYS.filter(k=> prev.includes(k) || items.some(it=>it.k===k));
       await api(`${API}/files/${folder.id}?supportsAllDrives=true`, {
         method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({description: types.join(',')})
       }, 'write');
+    }
+    return n;
+  }
+
+  async function saveToDrive(){
+    const dateStr = document.getElementById('dr-save-date').value;
+    const localKeys = KEYS.filter(k=> state[k].file && state[k].origin === 'local');
+    if(!localKeys.length) return setMsg('請先在下方手動上傳明細', 'err');
+    try{
+      await ensureToken('write');  // 先取 token（需在點擊當下），再跳確認框
+      const {grouped, days} = detectedDays(localKeys);
+      const fixedKeys = localKeys.filter(k=> !grouped[k]);   // 沒有日期欄位、只能存到「資料日」那天
+
+      /* ---- 多日：依日期拆成多個資料夾 ---- */
+      if(days.length > 1){
+        if(fixedKeys.length && !dateStr) return setMsg(`${fixedKeys.map(k=>SOURCE_LABEL[k]).join('、')} 沒有日期欄位，請先選「資料日」指定它屬於哪一天`, 'err');
+        const plan = days.map(day=>({day, items: localKeys.filter(k=>grouped[k]?.groups[day]).map(k=>{
+          const rows = grouped[k].groups[day];
+          return {k, rows: rows.length, file: rowsToFile(k, state[k].headers, rows), note: `${state[k].file.name}（多日拆分 ${day}）`};
+        })}));
+        if(fixedKeys.length){
+          let p = plan.find(x=>x.day === dateStr);
+          if(!p){ p = {day:dateStr, items:[]}; plan.push(p); plan.sort((a,b)=>a.day.localeCompare(b.day)); }
+          fixedKeys.forEach(k=> p.items.push({k, rows: state[k].rows.length, file: state[k].file}));
+        }
+        const lines = plan.map(p=>{
+          const ex = ui.dates.find(x=>x.name === p.day) ? '　⚠️已有資料，同類型會覆蓋' : '';
+          return `${p.day}：${p.items.map(it=>`${SOURCE_LABEL[it.k]} ${it.rows} 筆`).join('、')}${ex}`;
+        });
+        const lacking = plan.filter(p=> CORE.some(k=> !p.items.some(it=>it.k===k) && !(ui.dates.find(x=>x.name===p.day)?.types||[]).includes(k)));
+        const tip = lacking.length ? `\n\n提醒：${lacking.map(p=>p.day).join('、')} 存完後仍缺核心檔（例如 Hourly），之後可單獨上傳該檔補存到該日。` : '';
+        if(!confirm(`偵測到多日資料，將拆成 ${plan.length} 天分別存入：\n\n${lines.join('\n')}${tip}\n\n確定？`)) return;
+        ui.busy = true; setMsg('多日拆分存入中…');
+        const n = await writePlan(plan);
+        await listDates();
+        ui.busy = false;
+        return setMsg(`✅ 已拆分存入 ${plan.map(p=>p.day).join('、')}（共 ${n} 份）。目前畫面仍是多日合併資料，請在上方選日期載入後再產出報表。`, 'ok');
+      }
+
+      /* ---- 單日：維持原流程（允許只補存部分類型，例如單獨補 Hourly） ---- */
+      if(!dateStr) return setMsg('請先選擇資料日', 'err');
+      const autoDay = days[0];
+      if(autoDay && autoDay !== dateStr &&
+        !confirm(`明細資料落在 ${autoDay}，但你選的是 ${dateStr}。\n確定要存成 ${dateStr}？`)) return;
+      const existing = ui.dates.find(x=>x.name === dateStr);
+      const missingCore = CORE.filter(k=> !localKeys.includes(k) && !(existing?.types||[]).includes(k));
+      const warn = missingCore.length ? `\n\n⚠️ 存完後 ${dateStr} 仍缺：${missingCore.map(k=>SOURCE_LABEL[k]).join('、')}` : '';
+      if(!confirm(`將存入 ${dateStr}：${localKeys.map(k=>SOURCE_LABEL[k]).join('、')}${existing?'\n（該日已有資料，同類型會覆蓋，其餘保留）':''}${warn}\n\n確定？`)) return;
+      ui.busy = true; setMsg(`存入 ${dateStr} 中…`);
+      const n = await writePlan([{day:dateStr, items: localKeys.map(k=>({k, file: state[k].file}))}]);
       await listDates();
       ui.busy = false;
-      setMsg(`✅ 已存入 ${dateStr}（${localKeys.length} 份）`, 'ok');
+      setMsg(`✅ 已存入 ${dateStr}（${n} 份）`, 'ok');
     }catch(e){ ui.busy = false; setMsg('❌ ' + e.message, 'err'); }
   }
 
@@ -288,14 +392,24 @@
 
       if(ui.canWrite){
         const localKeys = KEYS.filter(k=> state[k].file && state[k].origin === 'local');
-        const coreReady = CORE.every(k=>localKeys.includes(k));
+        const {grouped, days} = detectedDays(localKeys);
+        const multi = days.length > 1;
+        const fixedKeys = localKeys.filter(k=> !grouped[k]);
         const prevDate = document.getElementById('dr-save-date')?.value;
-        const dateVal = prevDate || suggestDataDate();
+        const dateVal = prevDate || (multi ? '' : (days[0] || suggestDataDate()));
+        const tag = k=>{
+          if(!localKeys.includes(k)) return '';
+          if(!grouped[k]) return multi ? '（無日期欄，存到資料日）' : '';
+          const ds = Object.keys(grouped[k].groups).sort();
+          return ds.length > 1 ? `（${ds.map(d=>d.slice(5)).join('、')}）` : '';
+        };
         html += `<div class="dr-section"><div class="dr-label">存入資料庫（管理者）</div>
-          <div class="dr-ready">${KEYS.map(k=>`<span class="${localKeys.includes(k)?'ok':''}">${localKeys.includes(k)?'✓':'·'} ${SOURCE_LABEL[k]}${k==='iact'?'（選填）':''}</span>`).join('')}</div>
-          <div class="dr-row">資料日 <input type="date" id="dr-save-date" value="${dateVal}">
-          <button class="primary" id="dr-save" ${coreReady && !ui.busy ? '' : 'disabled'}>存入資料庫</button></div>
-          <div class="dr-sub" style="margin-top:6px">先在下方手動上傳，核心四份齊全後即可存入。資料日預設取 Status Log 最多筆的日期。</div></div>`;
+          <div class="dr-ready">${KEYS.map(k=>`<span class="${localKeys.includes(k)?'ok':''}">${localKeys.includes(k)?'✓':'·'} ${SOURCE_LABEL[k]}${k==='iact'?'（選填）':''}${tag(k)}</span>`).join('')}</div>
+          ${multi ? `<div class="dr-sub" style="margin-top:8px;color:var(--primary-dark);font-weight:600">📅 偵測到多日資料：${days.join('、')}，存入時會自動拆成每天一個資料夾</div>` : ''}
+          <div class="dr-row">${multi ? (fixedKeys.length ? `${fixedKeys.map(k=>SOURCE_LABEL[k]).join('、')} 的資料日` : '') : '資料日'}
+          <input type="date" id="dr-save-date" value="${dateVal}" ${multi && !fixedKeys.length ? 'style="display:none"' : ''}>
+          <button class="primary" id="dr-save" ${localKeys.length && !ui.busy ? '' : 'disabled'}>${multi ? `拆分存入 ${days.length} 天` : '存入資料庫'}</button></div>
+          <div class="dr-sub" style="margin-top:6px">可一次上傳多天的 IC / Chat / Status Log，系統依時間欄位自動拆日（IC：Call Request Time、Chat：Created Time、Status：Start Time）。Hourly / IACT 沒有日期欄，需單日上傳並指定資料日；也可單獨補存某一類到已有的日期。</div></div>`;
       }
     }
     html += `<div class="dr-msg ${ui.msgType}">${esc(ui.msg)}</div>`;
