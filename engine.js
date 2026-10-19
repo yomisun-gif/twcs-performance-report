@@ -307,6 +307,7 @@ function agentRowHTML(a){
     <td><input type="checkbox" class="ag-bbt" ${a.bbt?'checked':''}></td>
     <td><input type="checkbox" class="ag-half" ${a.halfDay?'checked':''}></td>
     <td><input type="checkbox" class="ag-counted" ${a.countedInScore!==false?'checked':''}></td>
+    <td class="ag-sched"></td>
     <td><button class="btn-row-del" type="button" title="刪除此列">✕</button></td>
   </tr>`;
 }
@@ -343,6 +344,7 @@ function blockHTML(b){
         <th>BBT<br><input type="checkbox" class="ag-selectall" data-col="bbt" title="全選/取消全選"></th>
         <th>半天<br><input type="checkbox" class="ag-selectall" data-col="half" title="全選/取消全選"></th>
         <th>計入成績<br><input type="checkbox" class="ag-selectall" data-col="counted" title="全選/取消全選"></th>
+        <th class="ag-sched-head" style="width:13%;">班表</th>
         <th></th>
       </tr></thead>
       <tbody class="agent-tbody">${agentRows}</tbody>
