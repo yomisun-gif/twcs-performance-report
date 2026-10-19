@@ -430,6 +430,12 @@
 
   document.addEventListener('sources:changed', ()=>{ if(ui.connected && ui.canWrite && !ui.busy) render(); });
 
+  // 給其他模組（例如 schedule.js 讀班表）共用同一組 Google 授權；drive.readonly 也可呼叫 Sheets API 讀取
+  window.DriveAuth = {
+    ensureRead: ()=> ensureToken('read'),
+    readToken: ()=> validToken('read') || validToken('write'),
+  };
+
   render();
   // 本分頁已授權過（token 未過期）→ 自動連線，不跳視窗
   if(validToken('read') || validToken('write')) connect();
