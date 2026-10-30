@@ -161,6 +161,17 @@
     return String(v);
   }
 
+  // ①目前已載入資料的日期：取 Status Log Start Time（無則 IC Call End Time）的眾數
+  function currentLoadedDay(){
+    const pick = (rows, col)=>{
+      if(!col || !rows.length) return '';
+      const cnt = {};
+      rows.forEach(r=>{ const d = toDate(r[col]); if(d && d.getFullYear() > 1899){ const k = ymd(d); cnt[k] = (cnt[k]||0)+1; } });
+      return Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+    };
+    return pick(state.status.rows, state.status.map.start_datetime) || pick(state.ic.rows, state.ic.map.call_end_time);
+  }
+
   /* ---------- 主流程 ---------- */
   async function run(){
     const status = $('pip-status'), warnBox = $('pip-warnings');
@@ -169,7 +180,11 @@
     const startStr = $('pip-start').value, endStr = $('pip-end').value;
     const wantSingle = $('pip-team-single').checked, wantFull = $('pip-team-full').checked;
     try{
-      await DriveAuth.ensureRead();   // 需在點擊當下第一個 await
+      const hasDrive = typeof window.DriveStore !== 'undefined' && typeof window.DriveAuth !== 'undefined';
+      let driveOk = false;
+      if(hasDrive){
+        try{ await DriveAuth.ensureRead(); driveOk = true; }catch(e){ driveOk = false; }   // 需在點擊當下第一個 await
+      }
       if(!nameInput.trim()) throw new Error('請輸入專員英文名稱');
       if(!startStr || !endStr) throw new Error('請選擇起訖日期');
       const agent = findAgent(nameInput);
@@ -183,16 +198,29 @@
       for(let d = new Date(first); d <= lastDay; d = addDays(d, 1)) days.push(ymd(d));
       if(days.length > 7*12) throw new Error('區間最多 12 週');
 
-      status.textContent = '讀取資料庫日期…';
-      const avail = new Set((await DriveStore.dates(true)).map(d=>d.name));
-      const need = days.filter(d=> avail.has(d) && !(d in dayCache));
+      // ①目前已載入的那一天（手動上傳或從資料庫載入）→ 直接用，不重抓
+      const loadedDay = currentLoadedDay();
+      const notes2 = [];
+      let avail = new Set();
+      if(driveOk){
+        status.textContent = '讀取資料庫日期…';
+        try{ avail = new Set((await DriveStore.dates(true)).map(d=>d.name)); }
+        catch(e){ notes2.push('資料庫讀取失敗（' + e.message + '），只用①已載入的資料'); }
+      }else{
+        notes2.push(hasDrive ? '尚未連接資料庫，只用①已載入的資料' : 'drive-store.js 是舊版（沒有 DriveStore），只用①已載入的資料，請確認已更新 drive-store.js 並強制重新整理');
+      }
+      const need = days.filter(d=> d !== loadedDay && avail.has(d) && !(d in dayCache));
       let done = 0;
       await pool(need, 3, async d=>{
         const raw = await DriveStore.fetchDay(d, ['ic','status']);
         dayCache[d] = raw && (raw.ic || raw.status) ? await computeDay(raw) : null;
         status.textContent = `下載並計算中… ${++done}/${need.length}`;
       });
-      days.forEach(d=>{ if(!avail.has(d)) dayCache[d] = null; });
+      const dayAgents = {};
+      days.forEach(d=>{
+        if(d === loadedDay) dayAgents[d] = buildRawAgentStats().agents;
+        else dayAgents[d] = avail.has(d) ? (dayCache[d] || null) : null;
+      });
 
       const teamGroups = [];
       if(wantSingle && wantFull) teamGroups.push({label:'團隊', test:()=>true});
@@ -203,7 +231,7 @@
       // 逐日算個人 + 團隊
       const perDay = {};
       days.forEach(d=>{
-        const agents = dayCache[d];
+        const agents = dayAgents[d];
         if(!agents){ perDay[d] = {has:false, ind:null, team:null, teamN:0}; return; }
         const ind = agentDay(agents[agent.email]);
         let team = null, teamN = 0;
@@ -235,7 +263,9 @@
       last = {agent, weeks, perDay, hasTeam: !!teamGroups.length, teamTag};
       render();
       const missing = days.filter(d=> !perDay[d].has && parseYmd(d) < new Date() && ![0,6].includes(parseYmd(d).getDay()));
-      if(missing.length) warnBox.innerHTML = `<div class="warn-box">⚠️ 資料庫沒有以下平日的資料，該日顯示空白：${missing.map(d=>d.slice(5)).join('、')}</div>`;
+      const msgs = notes2.slice();
+      if(missing.length) msgs.push(`以下平日沒有資料，該日顯示空白：${missing.map(d=>d.slice(5)).join('、')}`);
+      if(msgs.length) warnBox.innerHTML = msgs.map(m=>`<div class="warn-box">⚠️ ${m}</div>`).join('');
       status.textContent = `已產出：${agent.name || agent.email}（${agent.fullSkill ? '全技能' : '單技能'}）・${weeks.length} 週${last.hasTeam ? '・團隊=' + teamTag : ''}`;
     }catch(e){
       status.textContent = '';
