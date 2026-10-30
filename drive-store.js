@@ -436,6 +436,29 @@
     readToken: ()=> validToken('read') || validToken('write'),
   };
 
+  // 給 PIP 等跨日報表用：不動 state / 上傳畫面，只回傳指定日期的原始明細
+  // 呼叫前需先在點擊當下 await DriveAuth.ensureRead()
+  window.DriveStore = {
+    async dates(force){
+      if(force || !ui.dates.length) await listDates();
+      return ui.dates.map(d=>({name:d.name, types:d.types, known:d.known}));
+    },
+    // keys 例：['ic','status']；回傳 {ic:{rows,headers}, status:{rows,headers}}，該日不存在回傳 null
+    async fetchDay(dateStr, keys){
+      const d = ui.dates.find(x=>x.name === dateStr);
+      if(!d) return null;
+      const files = await listFolderFiles(d.id);
+      const picked = {};
+      files.forEach(f=>{ const k = keyOfDriveFile(f.name); if(k && keys.includes(k) && !picked[k]) picked[k] = f; });
+      const out = {};
+      await Promise.all(Object.keys(picked).map(async k=>{
+        const buf = await (await api(`${API}/files/${picked[k].id}?alt=media&supportsAllDrives=true`)).arrayBuffer();
+        out[k] = parseBuffer(buf);
+      }));
+      return out;
+    },
+  };
+
   render();
   // 本分頁已授權過（token 未過期）→ 自動連線，不跳視窗
   if(validToken('read') || validToken('write')) connect();
