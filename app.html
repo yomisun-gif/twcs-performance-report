@@ -321,6 +321,7 @@
     <div class="tab" data-tab="dashboard" tabindex="0" role="button"><span class="nav-icon">🏆</span>產能儀表板</div>
     <div class="tab" data-tab="iact" tabindex="0" role="button"><span class="nav-icon">🌐</span>IACT</div>
     <div class="tab dev-only" data-tab="devvars" tabindex="0" role="button" style="display:none;"><span class="nav-icon">🧪</span>CALL自訂變數(測試)</div>
+    <div class="tab dev-only" data-tab="pip" tabindex="0" role="button" style="display:none;"><span class="nav-icon">📉</span>PIP 追蹤(測試)</div>
   </nav>
 </aside>
 <div class="main">
@@ -668,6 +669,36 @@
   </div>
 </div>
 
+<!-- 🧪 隱藏開發功能：PIP 追蹤 -->
+<div class="panel" id="panel-pip">
+  <div class="card">
+    <h2>📉 PIP 追蹤（測試功能）</h2>
+    <p class="hint">從☁️資料庫逐日抓 IC + Status Log，每天用跟日報表相同的算法計算，排成週表。<b>需先在①上傳資料按「連接資料庫」</b>。<br>
+    個人＝輸入專員英文名稱（比對③名單姓名或 Email 前綴）。團隊＝依③名單「全技能」勾選拆組：只勾單技能＝全技能沒打勾的人；兩個都勾＝全部；都不勾＝不顯示團隊列。團隊只計「計入成績」、排除 BBT、且當日有 Call 產能的人。<br>
+    指標：產能＝Call 通數（排除 Missed）・滿意度＝Good/(Good+Bad)・回收率＝(Good+Bad)/通數・文書＝online for case 時長。週 Average＝當週有數字天數的簡單平均。點個人格子可設定假別（挪休/病假…），有假別的天不列入個人週平均。</p>
+    <div class="toolbar">
+      <input type="text" id="pip-name" placeholder="專員英文名稱" list="pip-name-list" style="width:180px;">
+      <datalist id="pip-name-list"></datalist>
+      <label>起：<input type="date" id="pip-start"></label>
+      <label>迄：<input type="date" id="pip-end"></label>
+      <span style="width:1px;align-self:stretch;background:var(--border);"></span>
+      <span class="hint" style="margin:0;">團隊：</span>
+      <label class="pip-skill"><input type="checkbox" id="pip-team-single" checked>單技能</label>
+      <label class="pip-skill"><input type="checkbox" id="pip-team-full">全技能</label>
+      <button class="primary" id="btn-pip-run">產出</button>
+    </div>
+    <div class="toolbar" style="margin-bottom:0;">
+      <button class="secondary" id="btn-pip-copy">📋 複製整張表</button>
+      <button class="secondary" id="btn-pip-copy-values">📋 只複製數值區</button>
+      <button class="secondary" id="btn-pip-export">匯出 Excel</button>
+      <button class="secondary" id="btn-pip-clear-cache" title="資料庫有補檔時使用">↻ 清除快取</button>
+      <span class="badge" id="pip-status"></span>
+    </div>
+    <div id="pip-warnings" style="margin-top:10px;"></div>
+  </div>
+  <div class="report-wrap"><table id="pip-table"></table></div>
+</div>
+
   </div>
 </div>
 </div>
@@ -684,5 +715,6 @@
 <script src="report-iact.js"></script>
 <script src="report-callsummary.js"></script>
 <script src="report-devvars.js"></script>
+<script src="report-pip.js"></script>
 </body>
 </html>
