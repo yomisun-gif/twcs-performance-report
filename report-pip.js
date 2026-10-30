@@ -3,7 +3,7 @@
    - 從 Drive 資料庫逐日抓 IC + Status Log，每天各跑一次 buildRawAgentStats()
      → 數字口徑與日報表完全一致，不另寫計算邏輯
    - 個人：輸入專員英文名稱（比對③名單姓名 / Email 前綴）
-   - 團隊：依③名單「全技能」勾選拆單技能／全技能，取當日有 Call 產能的人做平均
+   - 團隊：依③名單「全技能」勾選拆單技能／全技能，取當日有 Call+Chat 產能的人做平均
            （與即時產能一致：只計「計入成績」、排除 BBT）
    - 週平均 = 當週有數字的天數簡單平均（與原 PIP 表單算法相同）
    依賴：engine.js（state / buildRawAgentStats / REQ / guessMap / storageGet / storageSet / secToHMS）
@@ -13,7 +13,7 @@
   const $ = id => document.getElementById(id);
   const WEEKDAY = ['週日','週一','週二','週三','週四','週五','週六'];
   const METRICS = [
-    {key:'prod',  label:'Call<br>產能',   tsv:'Call產能'},
+    {key:'prod',  label:'Call+Chat<br>產能', tsv:'Call+Chat產能'},
     {key:'csat',  label:'Call<br>滿意度', tsv:'Call滿意度'},
     {key:'recov', label:'Call<br>回收率', tsv:'Call回收率'},
     {key:'doc',   label:'文書',           tsv:'文書'},
@@ -116,7 +116,7 @@
   /* ---------- 單日計算：暫時替換 state 來源 → buildRawAgentStats() → 還原 ---------- */
   async function computeDay(raw){
     const src = {};
-    for(const k of ['ic','status']){
+    for(const k of ['ic','chat','status']){
       if(raw[k]) src[k] = {rows: raw[k].rows, headers: raw[k].headers, map: await resolveMap(k, raw[k].headers)};
     }
     const backup = {};
@@ -141,11 +141,11 @@
   function agentDay(a){
     if(!a) return null;
     const onCase = a.status && a.status.on_case ? a.status.on_case.sec : 0;
-    const worked = a.icCount > 0 || Object.keys(a.status||{}).length > 0;
+    const worked = a.icCount > 0 || a.chatCount > 0 || Object.keys(a.status||{}).length > 0;
     if(!worked) return null;
     const gb = a.icGood + a.icBad;
     return {
-      prod: a.icCount,
+      prod: (a.icCount||0) + (a.chatCount||0),
       csat: gb ? a.icGood/gb : null,
       recov: a.icCount ? gb/a.icCount : null,
       doc: onCase,
@@ -212,8 +212,8 @@
       const need = days.filter(d=> d !== loadedDay && avail.has(d) && !(d in dayCache));
       let done = 0;
       await pool(need, 3, async d=>{
-        const raw = await DriveStore.fetchDay(d, ['ic','status']);
-        dayCache[d] = raw && (raw.ic || raw.status) ? await computeDay(raw) : null;
+        const raw = await DriveStore.fetchDay(d, ['ic','chat','status']);
+        dayCache[d] = raw && (raw.ic || raw.chat || raw.status) ? await computeDay(raw) : null;
         status.textContent = `下載並計算中… ${++done}/${need.length}`;
       });
       const dayAgents = {};
@@ -237,7 +237,7 @@
         let team = null, teamN = 0;
         if(teamGroups.length){
           const members = Object.values(agents).filter(a=>
-            a.countedInScore && !a.bbt && a.icCount > 0 && teamGroups[0].test(a) &&
+            a.countedInScore && !a.bbt && (a.icCount + a.chatCount) > 0 && teamGroups[0].test(a) &&
             state.roster.some(r=> r.email === a.email));
           const vals = members.map(agentDay).filter(Boolean);
           teamN = vals.length;
