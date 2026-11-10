@@ -4,8 +4,8 @@
    每位專員、每一天，依 Status Start Time 排序後逐筆檢查每一段「文書」：
      規則1  away for short break 的下一筆直接切 online for case
      規則2  away for meal 的下一筆直接切 online for case
-     規則3  兩段 online for case 之間，出現「允許狀態」以外的狀態
-            （允許狀態預設：online for internet call、雙渠道，可在畫面上勾選調整）
+     規則3  兩段 online for case 之間，一次都沒有「算作服務」的狀態
+            （服務狀態預設：online for internet call、雙渠道，可在畫面上勾選調整）
    同一段文書可能同時觸發多條規則，「合計」以不重複的文書段數計。
    要加新規則：在 RULES 陣列加一筆 {id,label,desc,test} 即可。
    依賴：engine.js（state / toDate / storageGet / storageSet）、report-daily.js（slColorFor）
@@ -34,13 +34,15 @@
       test:(seq, i)=> (i > 0 && seq[i-1].sub === BREAK) ? {from:i-1} : null },
     { id:'r2', label:'用餐→文書', desc:'away for meal 的下一筆直接切 online for case',
       test:(seq, i)=> (i > 0 && seq[i-1].sub === MEAL) ? {from:i-1} : null },
-    { id:'r3', label:'文書之間夾雜其他狀態', desc:'兩段 online for case 之間，出現允許狀態以外的狀態',
+    { id:'r3', label:'文書之間沒有服務', desc:'兩段 online for case 之間，一次都沒有出現「算作服務」的狀態（中間只要有一次服務就算正常）',
       test:(seq, i)=>{
         let j = i - 1;
         while(j >= 0 && seq[j].sub !== CASE) j--;
         if(j < 0) return null;
-        const bad = seq.slice(j+1, i).filter(x=> !allowed.has(x.sub));
-        return bad.length ? {from:j, bad:bad.map(x=> x.sub)} : null;
+        const mid = seq.slice(j+1, i);
+        if(!mid.length) return null;                       // 文書緊接文書（同狀態被拆成兩筆），不算
+        if(mid.some(x=> allowed.has(x.sub))) return null;  // 中間有服務 → 正常
+        return {from:j, bad:mid.map(x=> x.sub)};
       } }
   ];
 
@@ -164,7 +166,7 @@
     let html = `
       <p class="hint">依 Status Start Time 排序每位專員當天的狀態，檢查每一段 <b>online for case（文書）</b> 是否是在線上服務後才切換。只列③專員名單內的人（沒有名單時列出全部）。點選上表任一列，下方顯示該專員每一次的狀態順序。</p>
       <div class="sj-rules">${RULES.map((r,i)=> `<b>規則${i+1}｜${esc(r.label)}</b>：${esc(r.desc)}`).join('<br>')}</div>
-      <div style="font-size:12px;font-weight:700;">規則3 允許夾在兩段文書之間的狀態：</div>
+      <div style="font-size:12px;font-weight:700;">規則3「算作服務」的狀態（兩段文書之間至少要出現一次）：</div>
       <div class="sj-allowed">${allowedHtml}
         <button class="secondary" id="sj-allow-reset" style="padding:2px 8px;font-size:12px;">還原預設</button></div>
       <div class="toolbar">
@@ -222,7 +224,7 @@
     }).join('');
     el.innerHTML = `<h3 style="margin:0 0 6px;">${esc(v.name)}　<span style="font-weight:400;font-size:13px;">共 ${v.events.length} 次</span></h3>
       <div class="report-wrap" style="max-height:45vh;"><table class="report">
-      <thead><tr><th>#</th><th>日期</th><th>切文書時間</th><th>文書時長</th><th>觸發規則</th><th style="text-align:left;">狀態順序（藍框＝該段文書，紅框＝不允許的狀態）</th></tr></thead>
+      <thead><tr><th>#</th><th>日期</th><th>切文書時間</th><th>文書時長</th><th>觸發規則</th><th style="text-align:left;">狀態順序（藍框＝該段文書，紅框＝兩段文書之間沒有服務的狀態）</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
   }
 
