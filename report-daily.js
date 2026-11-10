@@ -80,7 +80,9 @@ function renderTable(rows){
       }
       body += `<td class="idcol id3">${dateStr||'-'}</td>`;
       body += `<td class="idcol id4">${r.name}</td>`;
-      COLS.forEach(c=> body += `<td class="blk-${c.blk}">${r[c.k]}</td>`);
+      COLS.forEach(c=> body += r._sched
+        ? ScheduleFill.cellHtml(r._sched, `blk-${c.blk}`)
+        : `<td class="blk-${c.blk}">${r[c.k]}</td>`);
       body += '</tr>';
     }
     i = j;
@@ -110,6 +112,9 @@ document.getElementById('btn-generate').onclick = ()=>{
   state.roster = built.roster;
   state.managers = built.managers;
   const {rows, warnings} = computeReport();
+  if(window.ScheduleFill){
+    warnings.push(...ScheduleFill.annotate(rows, document.getElementById('report-date').value || ''));
+  }
   lastRows = rows;
   renderTable(rows);
   fixStickyOffsets();
@@ -147,7 +152,8 @@ document.getElementById('btn-export-xlsx').onclick = ()=>{
   const header2 = [''].concat(exportCols.map(c=> c ? c.l : ''));
   const data = [header1, header2];
   lastRows.forEach(r=>{
-    data.push([r.name].concat(exportCols.map(c=> c ? r[c.k] : '')));
+    // 整列空白：每個資料欄都填班表狀態（分隔空白欄維持空白）
+    data.push([r.name].concat(exportCols.map(c=> c ? (r._sched ? r._sched.status : r[c.k]) : '')));
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
