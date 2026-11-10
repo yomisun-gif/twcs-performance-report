@@ -199,7 +199,9 @@ function populateSubStatusOptions(){
   sel.innerHTML = '<option value="">全部 Sub Status</option>' +
     values.map(v=>`<option value="${v}">${v}</option>`).join('');
   if(values.includes(current)) sel.value = current;
-  renderSlColorPickers(values);
+  // Sub Status 種類沒變就不重繪選擇器
+  const container = document.getElementById('sl-color-picker-container');
+  if(!container || container.dataset.sig !== JSON.stringify(values)) renderSlColorPickers(values);
 }
 
 // 用③專員名單裡的資料，讓搜尋框可以打姓名（自動建議 + 模糊比對）
@@ -232,13 +234,25 @@ function renderSlColorPickers(values){
       <input type="color" class="sl-color-input" data-sub="${v}" id="${safeId}" value="${color}">
     </label>`;
   }).join('');
+  container.dataset.sig = JSON.stringify(values);
+  // 拖曳調色時（input）只直接改表格底色，不重繪選擇器（重繪會讓開著的調色盤消失）；
+  // 選定後（change）才存檔
   container.querySelectorAll('.sl-color-input').forEach(inp=>{
-    inp.addEventListener('input', async (e)=>{
+    inp.addEventListener('input', (e)=>{
       const sub = e.target.dataset.sub;
       slColors[sub] = e.target.value;
-      await storageSet('sl_sub_colors', JSON.stringify(slColors));
-      if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+      slRepaintSubCells();
     });
+    inp.addEventListener('change', async (e)=>{
+      slColors[e.target.dataset.sub] = e.target.value;
+      await storageSet('sl_sub_colors', JSON.stringify(slColors));
+    });
+  });
+}
+
+function slRepaintSubCells(){
+  document.querySelectorAll('#statuslog-filter-table td.sl-sub-cell').forEach(td=>{
+    td.style.background = slColorFor(td.dataset.sub);
   });
 }
 
@@ -254,7 +268,7 @@ document.getElementById('btn-reset-sl-colors').onclick = async ()=>{
   slColors = {};
   await storageSet('sl_sub_colors', JSON.stringify(slColors));
   renderSlColorPickers(getUniqueSubStatusValues());
-  if(state.status.rows.length) document.getElementById('btn-filter-statuslog').click();
+  slRepaintSubCells();
 };
 
 document.getElementById('btn-filter-statuslog').onclick = ()=>{
@@ -314,7 +328,7 @@ document.getElementById('btn-filter-statuslog').onclick = ()=>{
       ? `<button type="button" class="sl-ov-reset" data-idx="${i}" title="還原為自動判斷">↺</button>` : '';
     return `<tr${cls.overridden ? ' class="sl-overridden"' : ''}>
       <td>${r[stMap.email]||'-'}</td>
-      <td${subStyle}>${r[stMap.sub_status]||'-'}</td>
+      <td class="sl-sub-cell" data-sub="${String(r[stMap.sub_status]||'').trim().replace(/"/g,'&quot;')}"${subStyle}>${r[stMap.sub_status]||'-'}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.start_datetime])}</td>
       <td class="${startCellClass}">${formatRawCell(r[stMap.end_datetime])}</td>
       <td>${durText}</td>
