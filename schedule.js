@@ -34,6 +34,9 @@
   .sc-tag.special{background:#E0ECFB;border-color:#A9C5EE;color:#1E4E8C;}
   td.ag-sched .sc-tag.none{color:var(--text-secondary);border-style:dashed;}
   td.ag-sched .sc-warn{display:block;font-size:10px;color:#B45309;margin-top:2px;font-weight:600;}
+  td.sched-fill{font-size:12px;white-space:nowrap;}
+  td.sched-fill.off{color:#9A3412;} td.sched-fill.special{color:#1E4E8C;}
+  html.dark td.sched-fill.off{color:#F5B78E;} html.dark td.sched-fill.special{color:#9CC1F2;}
   html.dark .sc-tag.off{background:#4A2A17;border-color:#8A4E28;color:#F5B78E;}
   html.dark .sc-tag.special{background:#1C2E47;border-color:#36557F;color:#9CC1F2;}
   html.dark td.ag-sched .sc-warn{color:#F5C96B;}
@@ -280,6 +283,43 @@
       }
     }
   }
+
+  /* ---------- 給日報表用：整列空白（只有 -、0、0:00:00）的專員補上班表狀態 ---------- */
+  const ID_KEYS = new Set(['email','name','batch','manager']);
+  const EMPTY_VALS = new Set(['', '-', '0', '0:00:00', '00:00:00']);
+  function isBlankRow(row){
+    return Object.entries(row).every(([k, v])=>
+      ID_KEYS.has(k) || k.startsWith('_') || v === null || v === undefined || EMPTY_VALS.has(String(v).trim()));
+  }
+  function checkReady(reportDate){
+    if(!sc.result) return {ready:false, reason:'尚未讀取班表'};
+    if(reportDate && reportDate !== sc.result.dateStr)
+      return {ready:false, reason:`班表日期（${sc.result.dateStr}）與報表日期（${reportDate}）不同`};
+    return {ready:true};
+  }
+  window.ScheduleFill = {
+    isBlankRow,
+    // 在每個整列空白的 row 上掛 r._sched = {status, cls}，回傳要顯示的提醒文字陣列
+    annotate(rows, reportDate){
+      rows.forEach(r=>{ delete r._sched; });
+      const blanks = rows.filter(isBlankRow);
+      if(!blanks.length) return [];
+      const chk = checkReady(reportDate);
+      if(!chk.ready)
+        return [`有 ${blanks.length} 位專員整列無資料，但${chk.reason}，未補上班表狀態（請到③專員名單讀取該日班表後重新產出）`];
+      const miss = [];
+      blanks.forEach(r=>{
+        const rec = lookup(r.name, r.email);
+        if(rec && rec.status) r._sched = {status:rec.status, cls:classify(rec.status)};
+        else miss.push(r.name);
+      });
+      return miss.length ? [`整列無資料、班表也查不到狀態（維持 -）：${miss.join('、')}`] : [];
+    },
+    // 每一個資料格都改成班表狀態文字（不合併儲存格）
+    cellHtml(f, blkClass){
+      return `<td class="${blkClass} sched-fill ${f.cls}" title="整列無資料，已補上班表狀態">${esc(f.status)}</td>`;
+    }
+  };
 
   /* ---------- 掛勾 ---------- */
   // 名單區塊會整塊重繪／新增列 → 自動把班表重新套上（只在內容變動時觸發，不監聽自己寫入的格子）
