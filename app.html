@@ -469,6 +469,12 @@
 
   <div class="card" style="margin-top:16px;">
     <h2>Status Log 篩選檢視</h2>
+    <div class="sub-tabs">
+      <button class="sub-tab active" id="sl-subtab-filter">明細篩選</button>
+      <button class="sub-tab" id="sl-subtab-jump">亂切狀態檢查</button>
+    </div>
+    <div id="sl-view-jump" style="display:none;"></div>
+    <div id="sl-view-filter">
     <p class="hint">用來核對 Status Log 原始資料。輸入專員 Email 或選 Sub Status（可各自單獨用，也可以一起篩），只列出 Sub Status / Status Start Time / Status End Time 三欄，並標示這筆資料這次計算「有沒有被納入」——綠色代表有計入，紅色代表被排除（跨日或 End Time=0）。「計算狀態」欄可手動勾選/取消，覆寫自動判斷（✋ 標示），會套用到所有報表，並記住設定；按 ↺ 還原單筆。</p>
     <div class="toolbar">
       <input type="text" id="statuslog-filter-email" placeholder="輸入專員 Email 或姓名（留空=全部人）" style="width:280px;" list="statuslog-agent-suggestions">
@@ -493,6 +499,7 @@
       <table class="report" id="statuslog-filter-table"></table>
     </div>
     <p class="hint" style="margin-top:6px;">「持續時間」欄位是該筆 Status Start Time 到 Status End Time 的時長，跟計算邏輯無關，純粹方便您掃描。</p>
+    </div>
   </div>
 </div>
 
@@ -710,6 +717,7 @@
 <script src="announcement.js"></script>
 <script src="report-daily.js"></script>
 <script src="report-overview.js"></script>
+<script src="report-statusjump.js"></script>
 <script src="report-realtime.js"></script>
 <script src="report-dashboard.js"></script>
 <script src="report-iact.js"></script>
