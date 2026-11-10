@@ -144,6 +144,11 @@ function ovRenderTable(rows){
         const col = ovColDefsMap[colId];
         if(!col) return;
         const isToggledBlank = ovBlankSet.has(colId);
+        // 整列空白：非空白欄都填班表狀態
+        if(r._sched && col.blk !== 'blank' && !isToggledBlank){
+          bodyHtml += ScheduleFill.cellHtml(r._sched, `blk-${col.blk}`);
+          return;
+        }
         const val = (col.blk === 'blank' || isToggledBlank) ? '' : col.get(r);
         bodyHtml += `<td class="blk-${col.blk}">${val}</td>`;
       });
@@ -239,8 +244,12 @@ function ovGenerate(){
       return;
     }
     const {rows} = computeReport();
+    const schedWarn = window.ScheduleFill
+      ? ScheduleFill.annotate(rows, document.getElementById('report-date').value || '') : [];
     ovRenderTable(rows);
-    statusEl.textContent = `已產出 ${rows.length} 位專員資料（表頭可拖曳排序，👁切換空白，➕插入空白欄，🗑移除該欄）`;
+    const filled = rows.filter(r=> r._sched).length;
+    statusEl.textContent = `已產出 ${rows.length} 位專員資料` + (filled ? `，${filled} 位整列空白已補班表狀態` : '') +
+      '（表頭可拖曳排序，👁切換空白，➕插入空白欄，🗑移除該欄）' + (schedWarn.length ? '｜⚠️ ' + schedWarn.join('；') : '');
     window.__overviewStale = false;
   }catch(err){
     console.error('產能總覽產出失敗：', err);
@@ -265,6 +274,7 @@ document.getElementById('btn-export-overview-xlsx').onclick = ()=>{
     const rowVals = ovColumnOrder.map(id=>{
       const col = ovColDefsMap[id];
       if(col.blk === 'blank' || ovBlankSet.has(id)) return '';
+      if(r._sched) return r._sched.status; // 整列空白：填班表狀態
       return col.get(r);
     });
     data.push([r.manager, r.batch || '-', dateStr, r.name].concat(rowVals));
